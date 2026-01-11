@@ -7,6 +7,17 @@ const PointOfSale = () => {
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
 
+  // Helper to get icon based on category
+  const getCategoryIcon = (category) => {
+    switch (category) {
+      case 'beer': return '🍺';
+      case 'liquor': return '🥃';
+      case 'seltzer': return '🌊';
+      case 'pop': return '🥤';
+      default: return '🍽️';
+    }
+  };
+
   // CHECKOUT STATES
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(''); // 'cash' or 'card'
@@ -175,9 +186,19 @@ const PointOfSale = () => {
         <div className="menu-grid">
           {displayedItems.map(item => (
             <div key={item.id} className="product-card" onClick={() => addToCart(item)}>
-              <h3 style={{ margin: '0 0 10px 0' }}>{item.name}</h3>
-              <div style={{ color: '#888', fontSize: '0.9rem' }}>{item.tier || item.category}</div>
-              <div style={{ fontWeight: 'bold', fontSize: '1.2rem', marginTop: 'auto' }}>${item.price.toFixed(2)}</div>
+
+              {/* NEW: The Big Icon */}
+              <div style={{ fontSize: '3rem', marginBottom: '10px' }}>
+                {getCategoryIcon(item.category)}
+              </div>
+
+              <h3 style={{ margin: '0 0 5px 0', fontSize: '1.1rem' }}>{item.name}</h3>
+              <div style={{ color: '#888', fontSize: '0.9rem', marginBottom: '5px' }}>
+                {item.tier ? item.tier.toUpperCase() : item.category.toUpperCase()}
+              </div>
+              <div style={{ fontWeight: 'bold', fontSize: '1.3rem', color: '#007bff' }}>
+                ${item.price.toFixed(2)}
+              </div>
             </div>
           ))}
         </div>
