@@ -1,52 +1,70 @@
 // src/components/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
-import { getInventory } from '../data/repository';
+import { 
+  getInventory, 
+  addInventoryItem, 
+  deleteInventoryItem, 
+  getSales, 
+  clearSales 
+} from '../data/repository';
 
 const AdminDashboard = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('sales'); 
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
   
   // Form State
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'beer', tier: '' });
 
+  // 1. Load Data from Supabase on start
   useEffect(() => {
-    // Load Sales
-    const loadedSales = JSON.parse(localStorage.getItem('pos_sales')) || [];
-    setSales(loadedSales);
-    setInventory(getInventory());
+    const loadData = async () => {
+        setLoading(true);
+        const invData = await getInventory();
+        const salesData = await getSales();
+        setInventory(invData);
+        setSales(salesData);
+        setLoading(false);
+    };
+    loadData();
   }, []);
 
   // --- ACTIONS ---
-  const handleDeleteSale = () => {
-    if(confirm('Clear all sales history?')) {
-        localStorage.setItem('pos_sales', JSON.stringify([]));
-        setSales([]);
+
+  const handleDeleteSale = async () => {
+    if(confirm('Clear all sales history? This cannot be undone.')) {
+        await clearSales();
+        setSales([]); // Clear local view
     }
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if(!newItem.name || !newItem.price) return alert("Name and Price required");
     
-    const updatedInventory = [...inventory, {
-        id: Date.now(),
+    const itemPayload = {
         name: newItem.name,
         price: parseFloat(newItem.price),
         category: newItem.category,
-        tier: newItem.tier
-    }];
+        tier: newItem.tier || null
+    };
 
-    setInventory(updatedInventory);
-    localStorage.setItem('pos_inventory', JSON.stringify(updatedInventory));
-    setNewItem({ name: '', price: '', category: 'beer', tier: '' }); 
-    alert("Item Added!");
+    // Save to Database
+    const savedItem = await addInventoryItem(itemPayload);
+    
+    // Update Local View (Add the new item returned from DB)
+    if (savedItem && savedItem.length > 0) {
+        setInventory([...inventory, savedItem[0]]);
+        setNewItem({ name: '', price: '', category: 'beer', tier: '' }); 
+        alert("Item Added!");
+    }
   };
 
-  const handleDeleteItem = (id) => {
+  const handleDeleteItem = async (id) => {
     if(confirm('Delete this item?')) {
-        const updated = inventory.filter(i => i.id !== id);
-        setInventory(updated);
-        localStorage.setItem('pos_inventory', JSON.stringify(updated));
+        await deleteInventoryItem(id);
+        // Remove from local screen
+        setInventory(inventory.filter(i => i.id !== id));
     }
   };
 
@@ -58,7 +76,7 @@ const AdminDashboard = ({ onBack }) => {
       {/* Header */}
       <div className="dashboard-header">
         <h1>Manager Dashboard</h1>
-        <button onClick={onBack} style={{ background: 'transparent', border: '1px solid #666', color: 'white', padding: '10px 20px' }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: '1px solid #666', color: 'white', padding: '10px 20px', cursor: 'pointer' }}>
           ← Back to POS
         </button>
       </div>
@@ -73,12 +91,14 @@ const AdminDashboard = ({ onBack }) => {
         </button>
       </div>
 
+      {loading && <p>Loading data from cloud...</p>}
+
       {/* VIEW 1: SALES REPORT */}
-      {activeTab === 'sales' && (
+      {!loading && activeTab === 'sales' && (
         <div>
           <div className="stats-card">
             <h3>Total Revenue: <span style={{color: '#28a745'}}>${totalRevenue}</span></h3>
-            <button onClick={handleDeleteSale} style={{ backgroundColor: '#d9534f', color: 'white', border: 'none', padding: '10px', borderRadius: '4px' }}>
+            <button onClick={handleDeleteSale} style={{ backgroundColor: '#d9534f', color: 'white', border: 'none', padding: '10px', borderRadius: '4px', cursor: 'pointer' }}>
                 Reset History
             </button>
           </div>
@@ -92,11 +112,14 @@ const AdminDashboard = ({ onBack }) => {
               </tr>
             </thead>
             <tbody>
-              {sales.slice().reverse().map((sale) => (
+              {sales.map((sale) => (
                 <tr key={sale.id}>
                   <td>{new Date(sale.date).toLocaleString()}</td>
                   <td>${parseFloat(sale.total).toFixed(2)}</td>
-                  <td>{sale.items.map(i => i.name).join(', ')}</td>
+                  <td>
+                    {/* Handle legacy data vs database data */}
+                    {Array.isArray(sale.items) ? sale.items.map(i => i.name).join(', ') : 'Unknown Items'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -106,7 +129,7 @@ const AdminDashboard = ({ onBack }) => {
       )}
 
       {/* VIEW 2: INVENTORY MANAGER */}
-      {activeTab === 'inventory' && (
+      {!loading && activeTab === 'inventory' && (
         <div>
            {/* Add Item Form */}
            <div className="form-card">
@@ -138,7 +161,7 @@ const AdminDashboard = ({ onBack }) => {
                     <option value="call">Call</option>
                     <option value="premium">Premium</option>
                 </select>
-                <button onClick={handleAddItem} style={{ backgroundColor: '#28a745', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px' }}>
+                <button onClick={handleAddItem} style={{ backgroundColor: '#28a745', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer' }}>
                     Add
                 </button>
              </div>
@@ -151,7 +174,7 @@ const AdminDashboard = ({ onBack }) => {
                     <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{item.name}</div>
                     <div style={{ color: '#28a745', margin: '5px 0' }}>${item.price.toFixed(2)}</div>
                     <div style={{ fontSize: '0.8rem', color: '#888' }}>{item.category} {item.tier ? `• ${item.tier}` : ''}</div>
-                    <button onClick={() => handleDeleteItem(item.id)} style={{ marginTop: '10px', backgroundColor: 'transparent', border: '1px solid #d9534f', color: '#d9534f', padding: '5px', width: '100%', borderRadius: '4px' }}>
+                    <button onClick={() => handleDeleteItem(item.id)} style={{ marginTop: '10px', backgroundColor: 'transparent', border: '1px solid #d9534f', color: '#d9534f', padding: '5px', width: '100%', borderRadius: '4px', cursor: 'pointer' }}>
                         Delete
                     </button>
                 </div>
