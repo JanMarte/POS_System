@@ -14,8 +14,13 @@ const PointOfSale = () => {
   const [changeDue, setChangeDue] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // 1. Update useEffect
   useEffect(() => {
-    setInventory(getInventory());
+    const loadData = async () => {
+      const data = await getInventory();
+      setInventory(data);
+    };
+    loadData();
   }, []);
 
   const addToCart = (product) => setCart([...cart, product]);
@@ -39,15 +44,15 @@ const PointOfSale = () => {
     setChangeDue(null);
   };
 
-  const finalizeSale = () => {
+  // 2. Update finalizeSale
+  const finalizeSale = async () => { // Make this async
     const orderData = {
-      id: Date.now(),
       items: cart,
       total: total.toFixed(2),
-      date: new Date().toISOString(),
       method: paymentMethod
     };
-    saveSale(orderData);
+
+    await saveSale(orderData); // Wait for database save
 
     // --- RECEIPT PRINTING LOGIC ---
     const receiptContent = `
@@ -107,9 +112,10 @@ const PointOfSale = () => {
     }, 500);
     // -----------------------------
 
-    // Reset everything
+    // Reset
     setCart([]);
     setIsCheckoutOpen(false);
+    alert("Sale Saved to Database!");
   };
 
   const processCash = () => {

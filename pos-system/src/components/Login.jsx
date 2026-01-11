@@ -1,9 +1,11 @@
 // src/components/Login.jsx
 import React, { useState } from 'react';
+import { getUsers } from '../data/repository'; // Import this!
 
 const Login = ({ onLogin }) => {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false); // New loading state
 
   const handleNumClick = (num) => {
     if (pin.length < 4) {
@@ -17,22 +19,25 @@ const Login = ({ onLogin }) => {
     setError('');
   };
 
-  const handleSubmit = () => {
-    // 1. Get users from our "Database"
-    const users = JSON.parse(localStorage.getItem('pos_users')) || [];
+  const handleSubmit = async () => { // Async now!
+    setLoading(true);
     
-    // 2. Find the user with this PIN
+    // 1. Get users from Supabase
+    const users = await getUsers();
+    
+    // 2. Find the user
     const user = users.find(u => u.pin === pin);
 
     if (user) {
-      onLogin(user); // Send user info back to App.jsx
+      onLogin(user);
     } else {
       setError('Invalid PIN');
       setPin('');
     }
+    setLoading(false);
   };
 
-  // Styles
+  // Styles (same as before)
   const styles = {
     container: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#222', color: 'white' },
     display: { fontSize: '2rem', marginBottom: '20px', padding: '10px', width: '200px', textAlign: 'center', background: '#333', borderRadius: '5px' },
@@ -45,8 +50,8 @@ const Login = ({ onLogin }) => {
   return (
     <div style={styles.container}>
       <h2>Enter PIN</h2>
-      <div style={styles.display}>{pin.replace(/./g, '•') || '____'}</div> {/* Hides the PIN */}
-      <div style={styles.error}>{error}</div>
+      <div style={styles.display}>{pin.replace(/./g, '•') || '____'}</div>
+      <div style={styles.error}>{loading ? 'Verifying...' : error}</div>
       
       <div style={styles.keypad}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
@@ -56,13 +61,9 @@ const Login = ({ onLogin }) => {
         ))}
         <button onClick={handleClear} style={{ ...styles.button, backgroundColor: '#882222' }}>CLR</button>
         <button onClick={() => handleNumClick('0')} style={styles.button}>0</button>
-        <button onClick={handleSubmit} style={{ ...styles.button, ...styles.loginBtn }}>
-          LOGIN
+        <button onClick={handleSubmit} disabled={loading} style={{ ...styles.button, ...styles.loginBtn, opacity: loading ? 0.5 : 1 }}>
+          {loading ? '...' : 'LOGIN'}
         </button>
-      </div>
-      
-      <div style={{marginTop: '20px', color: '#888'}}>
-        <small>Hint: Try 1111, 2222, or 3333</small>
       </div>
     </div>
   );

@@ -1,41 +1,81 @@
 // src/data/repository.js
+import { supabase } from '../supabaseClient';
 
-// 1. The Seeder - Runs once to create dummy data
-export const seedDatabase = () => {
-  if (!localStorage.getItem('pos_users')) {
-    const users = [
-      { id: 1, name: 'Jan', role: 'admin', pin: '1111' },
-      { id: 2, name: 'Sarah', role: 'manager', pin: '2222' },
-      { id: 3, name: 'Mike', role: 'bartender', pin: '3333' }
-    ];
-    localStorage.setItem('pos_users', JSON.stringify(users));
-  }
-
-  if (!localStorage.getItem('pos_inventory')) {
-    const inventory = [
-      { id: 101, name: 'Bud Light', price: 4.00, category: 'beer', tier: 'domestic' },
-      { id: 102, name: 'Busch Light', price: 4.00, category: 'beer', tier: 'domestic' },
-      { id: 103, name: 'White Claw', price: 5.00, category: 'seltzer', tier: 'standard' },
-      { id: 104, name: 'Titos', price: 6.00, category: 'liquor', tier: 'call' },
-      { id: 105, name: 'Grey Goose', price: 9.00, category: 'liquor', tier: 'premium' },
-      { id: 106, name: 'Well Vodka', price: 3.50, category: 'liquor', tier: 'well' }
-    ];
-    localStorage.setItem('pos_inventory', JSON.stringify(inventory));
-  }
-
-  if (!localStorage.getItem('pos_sales')) {
-    localStorage.setItem('pos_sales', JSON.stringify([]));
-  }
+// --- INVENTORY ---
+export const getInventory = async () => {
+  const { data, error } = await supabase
+    .from('inventory')
+    .select('*')
+    .order('name', { ascending: true });
+  
+  if (error) console.error('Error fetching inventory:', error);
+  return data || [];
 };
 
-// 2. Helper Functions to Read/Write
-export const getInventory = () => {
-    const data = localStorage.getItem('pos_inventory');
-    return data ? JSON.parse(data) : [];
+export const addInventoryItem = async (item) => {
+  const { data, error } = await supabase
+    .from('inventory')
+    .insert([ item ])
+    .select();
+    
+  if (error) {
+      console.error('Error adding item:', error);
+      alert('Error saving to database');
+  }
+  return data;
 };
 
-export const saveSale = (order) => {
-  const sales = JSON.parse(localStorage.getItem('pos_sales')) || [];
-  sales.push(order);
-  localStorage.setItem('pos_sales', JSON.stringify(sales));
+export const deleteInventoryItem = async (id) => {
+    const { error } = await supabase
+        .from('inventory')
+        .delete()
+        .eq('id', id);
+    if(error) console.error("Error deleting:", error);
+};
+
+// --- SALES ---
+export const saveSale = async (order) => {
+  // We only need to send the data Supabase expects
+  // (We don't send 'id' because Supabase generates it automatically)
+  const { error } = await supabase
+    .from('sales')
+    .insert([
+      { 
+        total: order.total, 
+        items: order.items, 
+        payment_method: order.method,
+        date: new Date().toISOString() 
+      }
+    ]);
+
+  if (error) console.error('Error saving sale:', error);
+};
+
+export const getSales = async () => {
+    const { data, error } = await supabase
+        .from('sales')
+        .select('*')
+        .order('date', { ascending: false });
+        
+    if (error) console.error(error);
+    return data || [];
+};
+
+export const clearSales = async () => {
+    // Be careful with this in production!
+    const { error } = await supabase
+        .from('sales')
+        .delete()
+        .neq('id', 0); // Deletes everything where ID is not 0 (all rows)
+    
+    if(error) console.error(error);
+}
+
+// --- USERS ---
+export const getUsers = async () => {
+    const { data, error } = await supabase
+        .from('users')
+        .select('*');
+    if(error) console.error(error);
+    return data || [];
 };
