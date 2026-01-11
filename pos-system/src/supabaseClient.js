@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://mdlhypppbvgirnkanjjq.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kbGh5cHBwYnZnaXJua2FuampxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwOTcwMDksImV4cCI6MjA4MzY3MzAwOX0.K4mAcbzYpw5L446K7-kOCeLwK-6GipfN4uwC-vyizUw'
+// Vite loads variables from the .env file automatically
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
