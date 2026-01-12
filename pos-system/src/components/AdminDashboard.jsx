@@ -8,6 +8,7 @@ import {
   clearSales
 } from '../data/repository';
 import Notification from './Notification';
+import SalesChart from './SalesChart'; // 👈 Import Chart
 
 const AdminDashboard = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('sales');
@@ -16,11 +17,12 @@ const AdminDashboard = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'beer', tier: '' });
 
-  // Notifications
+  // 👇 NEW: State to toggle the graph
+  const [showChart, setShowChart] = useState(false);
+
   const [notification, setNotification] = useState({ message: '', type: '' });
   const notify = (message, type = 'success') => setNotification({ message, type });
 
-  // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     message: '',
@@ -40,8 +42,6 @@ const AdminDashboard = ({ onBack }) => {
   }, []);
 
   // --- ACTIONS ---
-
-  // 1. Delete History
   const askDeleteHistory = () => {
     setConfirmModal({
       isOpen: true,
@@ -57,15 +57,12 @@ const AdminDashboard = ({ onBack }) => {
     setConfirmModal({ isOpen: false, message: '', onConfirm: null });
   };
 
-  // 2. Delete Item (UPDATED TO SHOW NAME)
   const askDeleteItem = (id) => {
-    // Find the actual item object so we can show its name
     const itemToDelete = inventory.find(item => item.id === id);
     const nameToShow = itemToDelete ? itemToDelete.name : 'this item';
 
     setConfirmModal({
       isOpen: true,
-      // 👇 Shows: "Delete 'Corona' permanently?"
       message: `Delete "${nameToShow}" permanently?`,
       onConfirm: () => performDeleteItem(id)
     });
@@ -78,7 +75,6 @@ const AdminDashboard = ({ onBack }) => {
     setConfirmModal({ isOpen: false, message: '', onConfirm: null });
   };
 
-  // 3. Add Item
   const handleAddItem = async () => {
     if (!newItem.name || !newItem.price) return notify("Name and Price required", "error");
     const itemPayload = {
@@ -109,14 +105,12 @@ const AdminDashboard = ({ onBack }) => {
 
   return (
     <div className="dashboard-container">
-      {/* 🔔 Notification */}
       <Notification
         message={notification.message}
         type={notification.type}
         onClose={() => setNotification({ message: '', type: '' })}
       />
 
-      {/* ⚠️ CONFIRMATION MODAL */}
       {confirmModal.isOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px', textAlign: 'center', border: '1px solid #444' }}>
@@ -124,7 +118,6 @@ const AdminDashboard = ({ onBack }) => {
             <p style={{ fontSize: '1.2rem', margin: '20px 0', fontWeight: 'bold' }}>
               {confirmModal.message}
             </p>
-
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button
                 onClick={() => setConfirmModal({ isOpen: false, message: '', onConfirm: null })}
@@ -159,7 +152,8 @@ const AdminDashboard = ({ onBack }) => {
 
       {!loading && activeTab === 'sales' && (
         <div>
-          <div className="stats-card" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+          {/* STATS CARDS */}
+          <div className="stats-card" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '20px' }}>
             <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid #444' }}>
               <h3 style={{ margin: '0 0 10px 0', color: '#aaa' }}>Net Revenue</h3>
               <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#28a745' }}>${stats.total.toFixed(2)}</div>
@@ -181,7 +175,28 @@ const AdminDashboard = ({ onBack }) => {
             </div>
           </div>
 
-          <table className="data-table">
+          {/* 👇 COLLAPSIBLE CHART SECTION */}
+          {/* 👇 UPDATED: Uses className instead of inline style */}
+          <div
+            className="analytics-toggle"
+            onClick={() => setShowChart(!showChart)}
+          >
+            <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#e0e0e0' }}>
+              📊 Sales Analytics
+            </span>
+            <span style={{ fontSize: '1.2rem', color: '#888' }}>
+              {showChart ? '▲' : '▼'}
+            </span>
+          </div>
+
+          {showChart && (
+            <div className="chart-slide-open" style={{ marginBottom: '20px' }}>
+              <SalesChart salesData={sales} />
+            </div>
+          )}
+
+          {/* 👇 ADDED MARGIN TO PUSH TABLE DOWN */}
+          <table className="data-table" style={{ marginTop: '40px' }}>
             <thead>
               <tr>
                 <th>Date</th>

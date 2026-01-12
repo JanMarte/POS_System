@@ -1,0 +1,385 @@
+/* src/index.css */
+
+/* =========================================
+   1. KIOSK MODE (Disable Selection & Dragging)
+   ========================================= */
+* {
+    -webkit-user-select: none;
+    /* Safari/Chrome */
+    -moz-user-select: none;
+    /* Firefox */
+    -ms-user-select: none;
+    /* IE/Edge */
+    user-select: none;
+    /* Standard */
+    -webkit-touch-callout: none;
+    /* Disable iOS magnifying glass */
+    box-sizing: border-box;
+}
+
+/* Re-enable typing for inputs */
+input,
+textarea,
+select {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* Stop image dragging */
+img {
+    -webkit-user-drag: none;
+    user-drag: none;
+    pointer-events: none;
+}
+
+/* =========================================
+   2. GLOBAL DARK THEME
+   ========================================= */
+:root {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    color-scheme: dark;
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #242424;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+button {
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.1s;
+    /* Snappy click effect */
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+/* =========================================
+   3. POS LAYOUT (Split Screen)
+   ========================================= */
+.pos-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+/* Left Side: Ticket */
+.ticket-panel {
+    width: 35%;
+    /* Fixed width for ticket */
+    background-color: #1e1e1e;
+    border-right: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+/* Right Side: Menu */
+.menu-panel {
+    width: 65%;
+    /* Remaining space */
+    padding: 20px;
+    background-color: #121212;
+    display: flex;
+    flex-direction: column;
+}
+
+/* =========================================
+   4. COMPONENTS
+   ========================================= */
+
+/* Product Grid */
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 15px;
+    overflow-y: auto;
+    padding-bottom: 20px;
+}
+
+/* Individual Product Card */
+.product-card {
+    background-color: #333;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 140px;
+}
+
+.product-card:hover {
+    background-color: #444;
+}
+
+.product-card:active {
+    background-color: #555;
+    transform: scale(0.95);
+}
+
+/* Items in the Cart */
+.cart-item {
+    padding: 15px;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+.cart-item:hover {
+    background-color: #2a2a2a;
+    color: #ff4d4f;
+    /* Red text on hover to indicate delete */
+}
+
+/* Category Tabs (Beer, Liquor, etc) */
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 15px;
+    font-size: 1.2rem;
+    background-color: #333;
+    border: 1px solid #555;
+    color: #fff;
+    border-radius: 8px;
+}
+
+.tab-btn.active {
+    background-color: #007bff;
+    /* Blue for active tab */
+    border-color: #007bff;
+    font-weight: bold;
+}
+
+/* Large Pay Buttons */
+.pay-btn-large {
+    width: 100%;
+    padding: 20px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    background-color: #28a745;
+    border: none;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+/* =========================================
+   5. ADMIN DASHBOARD STYLES
+   ========================================= */
+.dashboard-container {
+    padding: 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 20px;
+}
+
+.stats-card {
+    background: #333;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #444;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.data-table th,
+.data-table td {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid #444;
+}
+
+.data-table th {
+    color: #aaa;
+    font-weight: normal;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+}
+
+/* Forms (Admin Inputs) */
+.input-dark {
+    background: #222;
+    border: 1px solid #555;
+    color: white;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+/* =========================================
+   6. MODALS
+   ========================================= */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    /* Darker backdrop */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
+    /* Blur effect behind modal */
+}
+
+.modal-content {
+    background: #1e1e1e;
+    padding: 30px;
+    border-radius: 12px;
+    border: 1px solid #444;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    animation: modalPop 0.3s ease-out;
+}
+
+@keyframes modalPop {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.input-field {
+    width: 100%;
+    padding: 20px;
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: 2px solid #555;
+    background-color: #333;
+    color: white;
+}
+
+/* src/index.css (Add to bottom) */
+
+/* =========================================
+   7. CHART ANIMATIONS
+   ========================================= */
+
+/* The "Slide Down" Effect for the Dashboard Accordion */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        max-height: 500px;
+        /* Big enough to fit the chart */
+        transform: translateY(0);
+    }
+}
+
+.chart-slide-open {
+    animation: slideDown 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    overflow: hidden;
+    /* Hides content while it slides down */
+}
+
+/* The "Hover Pop" Effect for Graph Bars */
+/* Recharts uses 'path' elements for the bars. We target them here. */
+.recharts-surface path.recharts-rectangle {
+    transition: all 0.2s ease;
+    /* Smooth transition */
+    cursor: pointer;
+}
+
+.recharts-surface path.recharts-rectangle:hover {
+    filter: brightness(1.3);
+    /* Make it 30% brighter */
+    opacity: 0.9;
+    transform-origin: center bottom;
+    /* Anchor the scale to the bottom */
+}
+
+/* src/index.css (Add to bottom) */
+
+/* The Analytics Toggle Button */
+.analytics-toggle {
+    background: #333;
+    padding: 15px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #444;
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+    /* Smooth animation */
+}
+
+/* The Analytics Toggle Button */
+.analytics-toggle {
+    background: #333;
+    padding: 15px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #444;
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+    /* Smooth animation */
+}
+
+/* What happens when you hover */
+.analytics-toggle:hover {
+    background: #444;
+    /* Lighter background */
+    border-color: #666;
+    /* Lighter border */
+    transform: translateY(-2px);
+    /* Lifts up slightly */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    /* Adds a shadow */
+}
+
+/* Optional: Make the arrow animate */
+.analytics-toggle:hover span:last-child {
+    transform: scale(1.2);
+    /* Makes the arrow grow */
+    transition: transform 0.2s;
+}
