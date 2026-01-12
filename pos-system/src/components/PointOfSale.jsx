@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { getInventory, saveSale } from '../data/repository';
 import { supabase } from '../supabaseClient';
+import Notification from './Notification'; // 👈 Import the new component
 
 const PointOfSale = () => {
   const [inventory, setInventory] = useState([]);
-  const [cart, setCart] = useState([]); // Keeps flat list [A, A, B] for easy math
+  const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
 
   // --- TAB STATES ---
@@ -21,6 +22,13 @@ const PointOfSale = () => {
   const [changeDue, setChangeDue] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [tipAmount, setTipAmount] = useState(0);
+
+  // --- NOTIFICATION STATE ---
+  const [notification, setNotification] = useState({ message: '', type: '' });
+
+  const notify = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
 
   const getCategoryIcon = (category) => {
     switch (category) {
@@ -40,32 +48,35 @@ const PointOfSale = () => {
     loadData();
   }, []);
 
-  const addToCart = (product) => setCart([...cart, product]);
-
-  // 👇 UPDATED: Remove 1 instance of a specific item ID
-  const removeFromCart = (itemId) => {
-    const index = cart.findIndex(i => i.id === itemId);
-    if (index > -1) {
-      const newCart = [...cart];
-      newCart.splice(index, 1); // Remove just one
-      setCart(newCart);
-    }
+  // Smart Add
+  const addToCart = (product) => {
+    setCart(prevCart => {
+      const existing = prevCart.find(item => item.id === product.id);
+      if (existing) {
+        return prevCart.map(item =>
+          item.id === product.id ? { ...item, quantity: (item.quantity || 1) + 1 } : item
+        );
+      } else {
+        return [...prevCart, { ...product, quantity: 1 }];
+      }
+    });
   };
 
-  // 👇 NEW: Group items for Display Only (Visuals)
-  // Input: [A, A, B] -> Output: [{...A, qty: 2}, {...B, qty: 1}]
-  const groupedCart = Object.values(cart.reduce((acc, item) => {
-    if (!acc[item.id]) {
-      acc[item.id] = { ...item, qty: 1 };
-    } else {
-      acc[item.id].qty += 1;
-    }
-    return acc;
-  }, {}));
+  // Smart Remove
+  const removeFromCart = (itemId) => {
+    setCart(prevCart => {
+      return prevCart.map(item => {
+        if (item.id === itemId) {
+          return { ...item, quantity: item.quantity - 1 };
+        }
+        return item;
+      }).filter(item => item.quantity > 0);
+    });
+  };
 
   // MATH
   const calculateTotals = () => {
-    const subtotal = cart.reduce((acc, item) => acc + item.price, 0);
+    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const tax = subtotal * 0.07;
     const total = subtotal + tax;
     return { subtotal, tax, total };
@@ -86,20 +97,39 @@ const PointOfSale = () => {
 
   const loadTab = async (tab) => {
     const { data: items } = await supabase.from('tab_items').select('*').eq('tab_id', tab.id);
-    setCart(items || []);
+
+    // Merge Duplicates Logic (Backwards compatibility)
+    const mergedCart = (items || []).reduce((acc, dbItem) => {
+      const itemId = dbItem.inventory_id || dbItem.id;
+      const existingItem = acc.find(i => i.id === itemId);
+
+      if (existingItem) {
+        existingItem.quantity += (dbItem.quantity || 1);
+      } else {
+        acc.push({
+          ...dbItem,
+          id: itemId,
+          quantity: dbItem.quantity || 1
+        });
+      }
+      return acc;
+    }, []);
+
+    setCart(mergedCart);
     setCustomerName(tab.customer_name);
     setActiveTabId(tab.id);
     setShowTabList(false);
+    notify(`Tab loaded: ${tab.customer_name}`); // 🔔 Notification
   };
 
   const saveToTab = async () => {
-    if (cart.length === 0) return alert("Cart is empty");
+    if (cart.length === 0) return notify("Cart is empty!", "error");
     const name = customerName || 'Walk-in';
     let tabIdToUse = activeTabId;
 
     if (!tabIdToUse) {
       const { data: newTab, error } = await supabase.from('tabs').insert([{ customer_name: name, status: 'open' }]).select().single();
-      if (error) return alert('Error creating tab');
+      if (error) return notify('Error creating tab', "error");
       tabIdToUse = newTab.id;
     } else {
       await supabase.from('tabs').update({ customer_name: name }).eq('id', tabIdToUse);
@@ -107,17 +137,18 @@ const PointOfSale = () => {
 
     if (activeTabId) await supabase.from('tab_items').delete().eq('tab_id', tabIdToUse);
 
-    // Save flat list (Database handles it fine)
     const itemsToInsert = cart.map(item => ({
       tab_id: tabIdToUse,
       inventory_id: item.inventory_id || item.id,
       name: item.name,
       price: item.price,
-      quantity: 1
+      quantity: item.quantity
     }));
 
     await supabase.from('tab_items').insert(itemsToInsert);
-    alert(`Tab saved for ${name}!`);
+
+    notify(`Tab saved for ${name}!`); // 🔔 Notification
+
     setCart([]);
     setCustomerName('');
     setActiveTabId(null);
@@ -129,7 +160,7 @@ const PointOfSale = () => {
 
   // --- CHECKOUT LOGIC ---
   const handlePayClick = () => {
-    if (cart.length === 0) return alert("Cart is empty");
+    if (cart.length === 0) return notify("Cart is empty!", "error");
     setTipAmount(0);
     setIsCheckoutOpen(true);
     setPaymentMethod('');
@@ -137,23 +168,9 @@ const PointOfSale = () => {
     setChangeDue(null);
   };
 
-  // Helper to compress cart for DB saving
-  const groupItemsForSave = (items) => {
-    const grouped = items.reduce((acc, item) => {
-      const key = item.id;
-      if (!acc[key]) acc[key] = { ...item, quantity: 1 };
-      else acc[key].quantity += 1;
-      return acc;
-    }, {});
-    return Object.values(grouped);
-  };
-
   const finalizeSale = async () => {
-    // Compress for DB
-    const compressedCart = groupItemsForSave(cart);
-
     const orderData = {
-      items: compressedCart,
+      items: cart,
       total: total.toFixed(2),
       tip: tipAmount.toFixed(2),
       method: paymentMethod
@@ -166,12 +183,13 @@ const PointOfSale = () => {
     setCustomerName('');
     setActiveTabId(null);
     setIsCheckoutOpen(false);
-    alert("Sale Saved!");
+
+    notify("Sale Processed Successfully!"); // 🔔 Notification
   };
 
   const processCash = () => {
     const paid = parseFloat(amountPaid);
-    if (isNaN(paid) || paid < grandTotal) return alert("Not enough cash!");
+    if (isNaN(paid) || paid < grandTotal) return notify("Not enough cash!", "error");
     setChangeDue(paid - grandTotal);
   };
 
@@ -188,6 +206,13 @@ const PointOfSale = () => {
 
   return (
     <div className="pos-container">
+      {/* 🔔 NOTIFICATION COMPONENT */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        onClose={() => setNotification({ message: '', type: '' })}
+      />
+
       {/* LEFT: TICKET */}
       <div className="ticket-panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -209,21 +234,20 @@ const PointOfSale = () => {
           </div>
         </div>
 
-        {/* 👇 UPDATED: Display Grouped Cart */}
+        {/* CART LIST */}
         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-          {groupedCart.map((item) => (
+          {cart.map((item) => (
             <div key={item.id} className="cart-item" onClick={() => removeFromCart(item.id)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                 <span>
                   {item.name}
-                  {/* Show Badge if qty > 1 */}
-                  {item.qty > 1 && (
+                  {item.quantity > 1 && (
                     <span style={{ marginLeft: '8px', background: '#007bff', padding: '2px 6px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                      x{item.qty}
+                      x{item.quantity}
                     </span>
                   )}
                 </span>
-                <span>${(item.price * item.qty).toFixed(2)}</span>
+                <span>${(item.price * item.quantity).toFixed(2)}</span>
               </div>
             </div>
           ))}
@@ -243,7 +267,7 @@ const PointOfSale = () => {
         </div>
       </div>
 
-      {/* RIGHT: MENU (Unchanged) */}
+      {/* RIGHT: MENU */}
       <div className="menu-panel">
         <div className="tabs">
           {['all', 'beer', 'seltzer', 'liquor'].map(cat => (
@@ -261,7 +285,7 @@ const PointOfSale = () => {
         </div>
       </div>
 
-      {/* MODAL: TAB LIST (Unchanged) */}
+      {/* MODAL: TAB LIST */}
       {showTabList && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px' }}>
@@ -278,7 +302,7 @@ const PointOfSale = () => {
         </div>
       )}
 
-      {/* MODAL: CHECKOUT WITH TIPS (Unchanged) */}
+      {/* MODAL: CHECKOUT WITH TIPS */}
       {isCheckoutOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '500px' }}>

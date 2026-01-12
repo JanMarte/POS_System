@@ -1,11 +1,15 @@
 // src/components/Login.jsx
 import React, { useState, useEffect } from 'react';
 import { getUsers } from '../data/repository';
+import Notification from './Notification'; // 👈 Import Notification
 
 const Login = ({ onLogin }) => {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Notification State
+  const [notification, setNotification] = useState({ message: '', type: '' });
 
   const handleNumClick = (num) => {
     if (pin.length < 4) {
@@ -26,12 +30,20 @@ const Login = ({ onLogin }) => {
     const user = users.find(u => u.pin === pin);
 
     if (user) {
-      onLogin(user);
+      // 1. Show Success Message
+      setNotification({ message: `Welcome, ${user.name || 'Bartender'}!`, type: 'success' });
+
+      // 2. Wait 1 second so they can read it, then switch screens
+      setTimeout(() => {
+        onLogin(user);
+      }, 1500);
+
     } else {
       setError('Invalid PIN');
+      setNotification({ message: 'Invalid PIN', type: 'error' }); // Optional: Toast for error too
       setPin('');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -42,12 +54,10 @@ const Login = ({ onLogin }) => {
           setError('');
         }
       }
-
       if (e.key === 'Backspace') {
         setPin((prev) => prev.slice(0, -1));
         setError('');
       }
-
       if (e.key === 'Enter') {
         e.preventDefault();
         handleSubmit();
@@ -55,11 +65,7 @@ const Login = ({ onLogin }) => {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [pin, handleSubmit]);
 
   const styles = {
@@ -73,6 +79,13 @@ const Login = ({ onLogin }) => {
 
   return (
     <div style={styles.container}>
+      {/* 🔔 Notification Component */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        onClose={() => setNotification({ message: '', type: '' })}
+      />
+
       <h2>Enter PIN</h2>
       <div style={styles.display}>{pin.replace(/./g, '•') || '____'}</div>
       <div style={styles.error}>{loading ? 'Verifying...' : error}</div>

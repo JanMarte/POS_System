@@ -7,6 +7,7 @@ import {
   getSales,
   clearSales
 } from '../data/repository';
+import Notification from './Notification';
 
 const AdminDashboard = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('sales');
@@ -14,6 +15,17 @@ const AdminDashboard = ({ onBack }) => {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'beer', tier: '' });
+
+  // Notifications
+  const [notification, setNotification] = useState({ message: '', type: '' });
+  const notify = (message, type = 'success') => setNotification({ message, type });
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    message: '',
+    onConfirm: null
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -27,15 +39,48 @@ const AdminDashboard = ({ onBack }) => {
     loadData();
   }, []);
 
-  const handleDeleteSale = async () => {
-    if (confirm('Clear all sales history? This cannot be undone.')) {
-      await clearSales();
-      setSales([]);
-    }
+  // --- ACTIONS ---
+
+  // 1. Delete History
+  const askDeleteHistory = () => {
+    setConfirmModal({
+      isOpen: true,
+      message: 'Are you sure you want to WIPE ALL sales history? This cannot be undone.',
+      onConfirm: performDeleteHistory
+    });
   };
 
+  const performDeleteHistory = async () => {
+    await clearSales();
+    setSales([]);
+    notify("Sales History Reset", "success");
+    setConfirmModal({ isOpen: false, message: '', onConfirm: null });
+  };
+
+  // 2. Delete Item (UPDATED TO SHOW NAME)
+  const askDeleteItem = (id) => {
+    // Find the actual item object so we can show its name
+    const itemToDelete = inventory.find(item => item.id === id);
+    const nameToShow = itemToDelete ? itemToDelete.name : 'this item';
+
+    setConfirmModal({
+      isOpen: true,
+      // 👇 Shows: "Delete 'Corona' permanently?"
+      message: `Delete "${nameToShow}" permanently?`,
+      onConfirm: () => performDeleteItem(id)
+    });
+  };
+
+  const performDeleteItem = async (id) => {
+    await deleteInventoryItem(id);
+    setInventory(inventory.filter(i => i.id !== id));
+    notify("Item Deleted", "success");
+    setConfirmModal({ isOpen: false, message: '', onConfirm: null });
+  };
+
+  // 3. Add Item
   const handleAddItem = async () => {
-    if (!newItem.name || !newItem.price) return alert("Name and Price required");
+    if (!newItem.name || !newItem.price) return notify("Name and Price required", "error");
     const itemPayload = {
       name: newItem.name,
       price: parseFloat(newItem.price),
@@ -46,35 +91,58 @@ const AdminDashboard = ({ onBack }) => {
     if (savedItem && savedItem.length > 0) {
       setInventory([...inventory, savedItem[0]]);
       setNewItem({ name: '', price: '', category: 'beer', tier: '' });
-      alert("Item Added!");
+      notify("Item Added Successfully!");
     }
   };
 
-  const handleDeleteItem = async (id) => {
-    if (confirm('Delete this item?')) {
-      await deleteInventoryItem(id);
-      setInventory(inventory.filter(i => i.id !== id));
-    }
-  };
-
-  // 👇 UPDATED: Now calculates Tips! 👇
+  // Stats Logic
   const stats = sales.reduce((acc, order) => {
-    const amount = parseFloat(order.total); // Revenue
-    const tip = parseFloat(order.tip || 0); // Tip
-
+    const amount = parseFloat(order.total);
+    const tip = parseFloat(order.tip || 0);
     acc.total += amount;
     acc.tips += tip;
-
-    const paymentTotal = amount + tip; // What customer actually paid
-
+    const paymentTotal = amount + tip;
     if (order.payment_method === 'cash') acc.cash += paymentTotal;
     else acc.card += paymentTotal;
-
     return acc;
   }, { total: 0, tips: 0, cash: 0, card: 0 });
 
   return (
     <div className="dashboard-container">
+      {/* 🔔 Notification */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        onClose={() => setNotification({ message: '', type: '' })}
+      />
+
+      {/* ⚠️ CONFIRMATION MODAL */}
+      {confirmModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px', textAlign: 'center', border: '1px solid #444' }}>
+            <h2 style={{ color: '#ff4d4f', marginTop: 0 }}>⚠️ Confirm Action</h2>
+            <p style={{ fontSize: '1.2rem', margin: '20px 0', fontWeight: 'bold' }}>
+              {confirmModal.message}
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setConfirmModal({ isOpen: false, message: '', onConfirm: null })}
+                style={{ padding: '10px 20px', background: '#444', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{ padding: '10px 20px', background: '#d9534f', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="dashboard-header">
         <h1>Manager Dashboard</h1>
         <button onClick={onBack} style={{ background: 'transparent', border: '1px solid #666', color: 'white', padding: '10px 20px', cursor: 'pointer' }}>
@@ -91,7 +159,6 @@ const AdminDashboard = ({ onBack }) => {
 
       {!loading && activeTab === 'sales' && (
         <div>
-          {/* 👇 UPDATED: Shows 4 Boxes (Revenue, Tips, Cash, Card) 👇 */}
           <div className="stats-card" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
             <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid #444' }}>
               <h3 style={{ margin: '0 0 10px 0', color: '#aaa' }}>Net Revenue</h3>
@@ -110,7 +177,7 @@ const AdminDashboard = ({ onBack }) => {
               <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#007bff' }}>${stats.card.toFixed(2)}</div>
             </div>
             <div style={{ alignSelf: 'center', marginLeft: '20px' }}>
-              <button onClick={handleDeleteSale} style={{ backgroundColor: '#d9534f', color: 'white', border: 'none', padding: '15px', borderRadius: '4px', cursor: 'pointer' }}>Reset<br />History</button>
+              <button onClick={askDeleteHistory} style={{ backgroundColor: '#d9534f', color: 'white', border: 'none', padding: '15px', borderRadius: '4px', cursor: 'pointer' }}>Reset<br />History</button>
             </div>
           </div>
 
@@ -129,7 +196,6 @@ const AdminDashboard = ({ onBack }) => {
                 <tr key={sale.id}>
                   <td>{new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                   <td>${parseFloat(sale.total).toFixed(2)}</td>
-                  {/* 👇 NEW: Tip Column 👇 */}
                   <td style={{ color: '#17a2b8' }}>${parseFloat(sale.tip || 0).toFixed(2)}</td>
                   <td>
                     <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: sale.payment_method === 'cash' ? '#218838' : '#6610f2' }}>
@@ -138,12 +204,7 @@ const AdminDashboard = ({ onBack }) => {
                   </td>
                   <td style={{ color: '#aaa', fontSize: '0.9rem' }}>
                     {Array.isArray(sale.items)
-                      ? sale.items.map(i => {
-                        // Check if it has a quantity (New format) or not (Old format)
-                        return i.quantity && i.quantity > 1
-                          ? `${i.name} x${i.quantity}`
-                          : i.name;
-                      }).join(', ')
+                      ? sale.items.map(i => i.quantity && i.quantity > 1 ? `${i.name} x${i.quantity}` : i.name).join(', ')
                       : 'Unknown Items'}
                   </td>
                 </tr>
@@ -182,7 +243,7 @@ const AdminDashboard = ({ onBack }) => {
                 <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{item.name}</div>
                 <div style={{ color: '#28a745', margin: '5px 0' }}>${item.price.toFixed(2)}</div>
                 <div style={{ fontSize: '0.8rem', color: '#888' }}>{item.category} {item.tier ? `• ${item.tier}` : ''}</div>
-                <button onClick={() => handleDeleteItem(item.id)} style={{ marginTop: '10px', backgroundColor: 'transparent', border: '1px solid #d9534f', color: '#d9534f', padding: '5px', width: '100%', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>
+                <button onClick={() => askDeleteItem(item.id)} style={{ marginTop: '10px', backgroundColor: 'transparent', border: '1px solid #d9534f', color: '#d9534f', padding: '5px', width: '100%', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>
               </div>
             ))}
           </div>
