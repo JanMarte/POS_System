@@ -5,10 +5,10 @@ import { supabase } from '../supabaseClient';
 
 const PointOfSale = () => {
   const [inventory, setInventory] = useState([]);
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState([]); // Keeps flat list [A, A, B] for easy math
   const [filter, setFilter] = useState('all');
 
-  // --- TAB MANAGEMENT STATES ---
+  // --- TAB STATES ---
   const [customerName, setCustomerName] = useState('');
   const [activeTabId, setActiveTabId] = useState(null);
   const [showTabList, setShowTabList] = useState(false);
@@ -20,11 +20,8 @@ const PointOfSale = () => {
   const [amountPaid, setAmountPaid] = useState('');
   const [changeDue, setChangeDue] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // 👇 NEW: TIP STATE 👇
   const [tipAmount, setTipAmount] = useState(0);
 
-  // Helper to get icon
   const getCategoryIcon = (category) => {
     switch (category) {
       case 'beer': return '🍺';
@@ -44,7 +41,27 @@ const PointOfSale = () => {
   }, []);
 
   const addToCart = (product) => setCart([...cart, product]);
-  const removeFromCart = (idx) => setCart(cart.filter((_, i) => i !== idx));
+
+  // 👇 UPDATED: Remove 1 instance of a specific item ID
+  const removeFromCart = (itemId) => {
+    const index = cart.findIndex(i => i.id === itemId);
+    if (index > -1) {
+      const newCart = [...cart];
+      newCart.splice(index, 1); // Remove just one
+      setCart(newCart);
+    }
+  };
+
+  // 👇 NEW: Group items for Display Only (Visuals)
+  // Input: [A, A, B] -> Output: [{...A, qty: 2}, {...B, qty: 1}]
+  const groupedCart = Object.values(cart.reduce((acc, item) => {
+    if (!acc[item.id]) {
+      acc[item.id] = { ...item, qty: 1 };
+    } else {
+      acc[item.id].qty += 1;
+    }
+    return acc;
+  }, {}));
 
   // MATH
   const calculateTotals = () => {
@@ -54,8 +71,6 @@ const PointOfSale = () => {
     return { subtotal, tax, total };
   };
   const { subtotal, tax, total } = calculateTotals();
-
-  // 👇 NEW: Grand Total including Tip 👇
   const grandTotal = total + tipAmount;
 
   // --- TAB LOGIC ---
@@ -92,6 +107,7 @@ const PointOfSale = () => {
 
     if (activeTabId) await supabase.from('tab_items').delete().eq('tab_id', tabIdToUse);
 
+    // Save flat list (Database handles it fine)
     const itemsToInsert = cart.map(item => ({
       tab_id: tabIdToUse,
       inventory_id: item.inventory_id || item.id,
@@ -102,8 +118,6 @@ const PointOfSale = () => {
 
     await supabase.from('tab_items').insert(itemsToInsert);
     alert(`Tab saved for ${name}!`);
-
-    // Reset after save
     setCart([]);
     setCustomerName('');
     setActiveTabId(null);
@@ -116,18 +130,32 @@ const PointOfSale = () => {
   // --- CHECKOUT LOGIC ---
   const handlePayClick = () => {
     if (cart.length === 0) return alert("Cart is empty");
-    setTipAmount(0); // Reset tip
+    setTipAmount(0);
     setIsCheckoutOpen(true);
     setPaymentMethod('');
     setAmountPaid('');
     setChangeDue(null);
   };
 
+  // Helper to compress cart for DB saving
+  const groupItemsForSave = (items) => {
+    const grouped = items.reduce((acc, item) => {
+      const key = item.id;
+      if (!acc[key]) acc[key] = { ...item, quantity: 1 };
+      else acc[key].quantity += 1;
+      return acc;
+    }, {});
+    return Object.values(grouped);
+  };
+
   const finalizeSale = async () => {
+    // Compress for DB
+    const compressedCart = groupItemsForSave(cart);
+
     const orderData = {
-      items: cart,
-      total: total.toFixed(2), // Revenue
-      tip: tipAmount.toFixed(2), // Tip
+      items: compressedCart,
+      total: total.toFixed(2),
+      tip: tipAmount.toFixed(2),
       method: paymentMethod
     };
 
@@ -165,7 +193,6 @@ const PointOfSale = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{activeTabId ? `Tab #${activeTabId}` : 'New Order'}</h2>
 
-          {/* 👇 NEW: BUTTONS (RESET + TABS) 👇 */}
           <div style={{ display: 'flex', gap: '5px' }}>
             <button
               onClick={() => { setCart([]); setCustomerName(''); setActiveTabId(null); }}
@@ -182,11 +209,22 @@ const PointOfSale = () => {
           </div>
         </div>
 
+        {/* 👇 UPDATED: Display Grouped Cart */}
         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-          {cart.map((item, idx) => (
-            <div key={idx} className="cart-item" onClick={() => removeFromCart(idx)}>
-              <span>{item.name}</span>
-              <span>${item.price.toFixed(2)}</span>
+          {groupedCart.map((item) => (
+            <div key={item.id} className="cart-item" onClick={() => removeFromCart(item.id)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <span>
+                  {item.name}
+                  {/* Show Badge if qty > 1 */}
+                  {item.qty > 1 && (
+                    <span style={{ marginLeft: '8px', background: '#007bff', padding: '2px 6px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                      x{item.qty}
+                    </span>
+                  )}
+                </span>
+                <span>${(item.price * item.qty).toFixed(2)}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -205,7 +243,7 @@ const PointOfSale = () => {
         </div>
       </div>
 
-      {/* RIGHT: MENU */}
+      {/* RIGHT: MENU (Unchanged) */}
       <div className="menu-panel">
         <div className="tabs">
           {['all', 'beer', 'seltzer', 'liquor'].map(cat => (
@@ -223,7 +261,7 @@ const PointOfSale = () => {
         </div>
       </div>
 
-      {/* MODAL: TAB LIST */}
+      {/* MODAL: TAB LIST (Unchanged) */}
       {showTabList && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px' }}>
@@ -240,19 +278,17 @@ const PointOfSale = () => {
         </div>
       )}
 
-      {/* MODAL: CHECKOUT WITH TIPS */}
+      {/* MODAL: CHECKOUT WITH TIPS (Unchanged) */}
       {isCheckoutOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '500px' }}>
 
-            {/* Header: Bill + Tip = Total */}
             <div style={{ marginBottom: '20px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
               <div style={{ fontSize: '1.2rem', color: '#aaa' }}>Bill: ${total.toFixed(2)}</div>
               {tipAmount > 0 && <div style={{ fontSize: '1.2rem', color: '#28a745' }}>+ Tip: ${tipAmount.toFixed(2)}</div>}
               <h1 style={{ fontSize: '3rem', margin: '10px 0' }}>${grandTotal.toFixed(2)}</h1>
             </div>
 
-            {/* STEP 1: SELECT TIP (Only show if payment method not selected yet) */}
             {!paymentMethod && (
               <div style={{ marginBottom: '30px' }}>
                 <h3 style={{ color: '#aaa', marginBottom: '10px' }}>Add Tip?</h3>
@@ -272,7 +308,6 @@ const PointOfSale = () => {
                     </button>
                   ))}
                 </div>
-                {/* Custom Tip & No Tip */}
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button onClick={() => setTipAmount(0)} style={{ flex: 1, padding: '10px', background: '#444', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>No Tip</button>
                   <input
@@ -284,7 +319,6 @@ const PointOfSale = () => {
               </div>
             )}
 
-            {/* STEP 2: SELECT METHOD */}
             {!paymentMethod && (
               <div>
                 <h3 style={{ color: '#aaa', marginBottom: '10px' }}>Payment Method</h3>
@@ -295,7 +329,6 @@ const PointOfSale = () => {
               </div>
             )}
 
-            {/* STEP 3: CASH HANDLING */}
             {paymentMethod === 'cash' && !changeDue && (
               <div>
                 <h3>Amount Received</h3>
@@ -311,7 +344,6 @@ const PointOfSale = () => {
               </div>
             )}
 
-            {/* STEP 4: CARD PROCESSING */}
             {paymentMethod === 'card' && (
               <div>
                 <h3>{isProcessing ? "Processing..." : `Charge $${grandTotal.toFixed(2)}`}</h3>

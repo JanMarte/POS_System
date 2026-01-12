@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState } from 'react'; // Removed useEffect & seedDatabase
+import React, { useState } from 'react';
 import PointOfSale from './components/PointOfSale.jsx';
 import Login from './components/Login.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';

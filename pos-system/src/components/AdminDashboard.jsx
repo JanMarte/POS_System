@@ -137,7 +137,14 @@ const AdminDashboard = ({ onBack }) => {
                     </span>
                   </td>
                   <td style={{ color: '#aaa', fontSize: '0.9rem' }}>
-                    {Array.isArray(sale.items) ? sale.items.map(i => i.name).join(', ') : 'Unknown'}
+                    {Array.isArray(sale.items)
+                      ? sale.items.map(i => {
+                        // Check if it has a quantity (New format) or not (Old format)
+                        return i.quantity && i.quantity > 1
+                          ? `${i.name} x${i.quantity}`
+                          : i.name;
+                      }).join(', ')
+                      : 'Unknown Items'}
                   </td>
                 </tr>
               ))}
