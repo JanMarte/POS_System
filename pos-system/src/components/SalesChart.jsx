@@ -51,7 +51,7 @@ const SalesChart = ({ salesData }) => {
         }}>
             <h3 style={{ textAlign: 'center', color: '#aaa', margin: '0 0 15px 0', fontSize: '1rem' }}>Top 10 Bestsellers</h3>
 
-            <ResponsiveContainer width="100%" height="90%">
+            <ResponsiveContainer width="100%" height="300" minWidth={300}>
                 <BarChart
                     data={data}
                     layout="vertical"

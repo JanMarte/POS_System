@@ -30,7 +30,26 @@ export const deleteInventoryItem = async (id) => {
     .from('inventory')
     .delete()
     .eq('id', id);
-  if (error) console.error("Error deleting:", error);
+
+  if (error) {
+    console.error("Error deleting:", error);
+    return false; // ❌ Database said NO (probably 409 Conflict)
+  }
+  return true; // ✅ Database said YES
+};
+
+export const updateInventoryItem = async (id, updates) => {
+  const { data, error } = await supabase
+    .from('inventory')
+    .update(updates)
+    .eq('id', id)
+    .select();
+
+  if (error) {
+    console.error('Error updating item:', error);
+    return null;
+  }
+  return data;
 };
 
 // --- SALES ---

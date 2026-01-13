@@ -2,12 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { getInventory, saveSale } from '../data/repository';
 import { supabase } from '../supabaseClient';
-import Notification from './Notification'; // 👈 Import the new component
+import Notification from './Notification';
 
 const PointOfSale = () => {
   const [inventory, setInventory] = useState([]);
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
+
+  // 👇 CHANGE 1: Add Search State
+  const [searchTerm, setSearchTerm] = useState('');
 
   // --- TAB STATES ---
   const [customerName, setCustomerName] = useState('');
@@ -98,7 +101,7 @@ const PointOfSale = () => {
   const loadTab = async (tab) => {
     const { data: items } = await supabase.from('tab_items').select('*').eq('tab_id', tab.id);
 
-    // Merge Duplicates Logic (Backwards compatibility)
+    // Merge Duplicates Logic
     const mergedCart = (items || []).reduce((acc, dbItem) => {
       const itemId = dbItem.inventory_id || dbItem.id;
       const existingItem = acc.find(i => i.id === itemId);
@@ -119,7 +122,7 @@ const PointOfSale = () => {
     setCustomerName(tab.customer_name);
     setActiveTabId(tab.id);
     setShowTabList(false);
-    notify(`Tab loaded: ${tab.customer_name}`); // 🔔 Notification
+    notify(`Tab loaded: ${tab.customer_name}`);
   };
 
   const saveToTab = async () => {
@@ -146,8 +149,7 @@ const PointOfSale = () => {
     }));
 
     await supabase.from('tab_items').insert(itemsToInsert);
-
-    notify(`Tab saved for ${name}!`); // 🔔 Notification
+    notify(`Tab saved for ${name}!`);
 
     setCart([]);
     setCustomerName('');
@@ -155,7 +157,13 @@ const PointOfSale = () => {
   };
 
   const closeTab = async () => {
-    if (activeTabId) await supabase.from('tabs').update({ status: 'paid' }).eq('id', activeTabId);
+    if (activeTabId) {
+      // 1. Mark the tab itself as 'paid' (for history)
+      await supabase.from('tabs').update({ status: 'paid' }).eq('id', activeTabId);
+
+      // 2. 👇 NEW: Delete the temporary items so they don't lock the database
+      await supabase.from('tab_items').delete().eq('tab_id', activeTabId);
+    }
   };
 
   // --- CHECKOUT LOGIC ---
@@ -184,7 +192,7 @@ const PointOfSale = () => {
     setActiveTabId(null);
     setIsCheckoutOpen(false);
 
-    notify("Sale Processed Successfully!"); // 🔔 Notification
+    notify("Sale Processed Successfully!");
   };
 
   const processCash = () => {
@@ -201,12 +209,14 @@ const PointOfSale = () => {
     }, 2000);
   };
 
-  // --- RENDER ---
-  const displayedItems = filter === 'all' ? inventory : inventory.filter(i => i.category === filter);
+  // 👇 CHANGE 2: Update Filtering Logic
+  // If user typed something, search names. If not, use the Tabs.
+  const displayedItems = searchTerm
+    ? inventory.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    : (filter === 'all' ? inventory : inventory.filter(i => i.category === filter));
 
   return (
     <div className="pos-container">
-      {/* 🔔 NOTIFICATION COMPONENT */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -269,11 +279,35 @@ const PointOfSale = () => {
 
       {/* RIGHT: MENU */}
       <div className="menu-panel">
-        <div className="tabs">
-          {['all', 'beer', 'seltzer', 'liquor'].map(cat => (
-            <button key={cat} className={`tab-btn ${filter === cat ? 'active' : ''}`} onClick={() => setFilter(cat)}>{cat.toUpperCase()}</button>
-          ))}
+
+        {/* 👇 CHANGE 3: Add the Search Bar */}
+        <div style={{ marginBottom: '10px' }}>
+          <input
+            type="text"
+            placeholder="🔍 Search items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '15px',
+              fontSize: '1.2rem',
+              borderRadius: '8px',
+              border: '1px solid #555',
+              background: '#2a2a2a',
+              color: 'white'
+            }}
+          />
         </div>
+
+        {/* Hide tabs if searching so it looks cleaner */}
+        {!searchTerm && (
+          <div className="tabs">
+            {['all', 'beer', 'seltzer', 'liquor'].map(cat => (
+              <button key={cat} className={`tab-btn ${filter === cat ? 'active' : ''}`} onClick={() => setFilter(cat)}>{cat.toUpperCase()}</button>
+            ))}
+          </div>
+        )}
+
         <div className="menu-grid">
           {displayedItems.map(item => (
             <div key={item.id} className="product-card" onClick={() => addToCart(item)}>
