@@ -149,7 +149,7 @@ button:active {
   box-sizing: border-box;
 }
 
-/* --- DASHBOARD STYLES (Add to bottom of src/App.css) --- */
+/* --- DASHBOARD STYLES --- */
 .dashboard-container {
   padding: 20px;
   color: var(--text-color);

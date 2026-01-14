@@ -18,12 +18,12 @@ const AdminDashboard = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
 
   // Form State
-  const [newItem, setNewItem] = useState({ name: '', price: '', category: 'beer', tier: '' });
+  const [newItem, setNewItem] = useState({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
 
   // Tracks which item we are editing (null = add mode)
   const [editingId, setEditingId] = useState(null);
 
-  // 🔒 FIX 1: New state to lock buttons while saving
+  // New state to lock buttons while saving
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Chart & Notifications
@@ -73,15 +73,15 @@ const AdminDashboard = ({ onBack }) => {
   };
 
   const performDeleteItem = async (id) => {
-    // 1. Try to delete
+    // Try to delete
     const success = await deleteInventoryItem(id);
 
-    // 2. Only remove from screen if success is TRUE
+    // Only remove from screen if success is TRUE
     if (success) {
       setInventory(inventory.filter(i => i.id !== id));
       notify("Item Deleted", "success");
     } else {
-      // 3. If false (409 error), tell the user why
+      // If false (409 error), tell the user why
       notify("Cannot delete: Item is currently in an Open Tab!", "error");
     }
 
@@ -95,7 +95,8 @@ const AdminDashboard = ({ onBack }) => {
       name: item.name,
       price: item.price,
       category: item.category,
-      tier: item.tier || ''
+      tier: item.tier || '',
+      stock_count: item.stock_count || ''
     });
     setEditingId(item.id); // Switch to Edit Mode
     window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll up to form
@@ -103,16 +104,16 @@ const AdminDashboard = ({ onBack }) => {
   };
 
   const cancelEditing = () => {
-    setNewItem({ name: '', price: '', category: 'beer', tier: '' });
+    setNewItem({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
     setEditingId(null);
   };
 
-  // 🔒 FIX 2: Updated Save Function with Anti-Double-Click Logic
+  // New Save Function with Anti-Double-Click Logic
   const handleSaveItem = async () => {
-    // 1. Validation
+    // Validation
     if (!newItem.name || !newItem.price) return notify("Name and Price required", "error");
 
-    // 2. Prevent Double Clicks
+    // Prevent Double Clicks
     if (isSubmitting) return;
     setIsSubmitting(true); // Lock the interface
 
@@ -120,7 +121,8 @@ const AdminDashboard = ({ onBack }) => {
       name: newItem.name,
       price: parseFloat(newItem.price),
       category: newItem.category,
-      tier: newItem.tier || null
+      tier: newItem.tier || null,
+      stock_count: newItem.stock_count === '' ? null : parseInt(newItem.stock_count)
     };
 
     try {
@@ -145,7 +147,7 @@ const AdminDashboard = ({ onBack }) => {
       console.error(error);
       notify("Error saving item", "error");
     } finally {
-      // 3. Always unlock the button when done (even if it failed)
+      // Always unlock the button when done (even if it failed)
       setIsSubmitting(false);
     }
   };
@@ -262,6 +264,14 @@ const AdminDashboard = ({ onBack }) => {
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <input className="input-dark" placeholder="Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
               <input className="input-dark" placeholder="Price" type="number" style={{ width: '100px' }} value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
+              <input
+                className="input-dark"
+                placeholder="Stock (Optional)"
+                type="number"
+                style={{ width: '120px' }}
+                value={newItem.stock_count}
+                onChange={e => setNewItem({ ...newItem, stock_count: e.target.value })}
+              />
               <select className="input-dark" value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })}>
                 <option value="beer">Beer</option>
                 <option value="seltzer">Seltzer</option>
@@ -275,7 +285,7 @@ const AdminDashboard = ({ onBack }) => {
                 <option value="premium">Premium</option>
               </select>
 
-              {/* 🔒 FIX 3: Buttons disable when isSubmitting is true */}
+              {/* Buttons disable when isSubmitting is true */}
               {editingId ? (
                 <>
                   <button
@@ -310,11 +320,21 @@ const AdminDashboard = ({ onBack }) => {
               <div key={item.id} className="inventory-item">
                 <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{item.name}</div>
                 <div style={{ color: '#28a745', margin: '5px 0' }}>${item.price.toFixed(2)}</div>
-                <div style={{ fontSize: '0.8rem', color: '#888' }}>{item.category} {item.tier ? `• ${item.tier}` : ''}</div>
+
+                {/* 👇 UPDATED: Category + Stock Badge */}
+                <div style={{ fontSize: '0.8rem', color: '#888' }}>
+                  {item.category} {item.tier ? `• ${item.tier}` : ''}
+
+                  {/* Only show if stock is tracked (not null) */}
+                  {item.stock_count !== null && (
+                    <span style={{ marginLeft: '10px', color: '#007bff', fontWeight: 'bold' }}>
+                      📦 {item.stock_count} left
+                    </span>
+                  )}
+                </div>
 
                 <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
                   <button onClick={() => startEditing(item)} style={{ flex: 1, backgroundColor: '#007bff', border: 'none', color: 'white', padding: '5px', borderRadius: '4px', cursor: 'pointer' }}>Edit</button>
-
                   <button onClick={() => askDeleteItem(item.id)} style={{ flex: 1, backgroundColor: 'transparent', border: '1px solid #d9534f', color: '#d9534f', padding: '5px', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>
                 </div>
               </div>

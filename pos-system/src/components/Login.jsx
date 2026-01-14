@@ -1,7 +1,7 @@
 // src/components/Login.jsx
 import React, { useState, useEffect } from 'react';
 import { getUsers } from '../data/repository';
-import Notification from './Notification'; // 👈 Import Notification
+import Notification from './Notification';
 
 const Login = ({ onLogin }) => {
   const [pin, setPin] = useState('');
@@ -30,17 +30,17 @@ const Login = ({ onLogin }) => {
     const user = users.find(u => u.pin === pin);
 
     if (user) {
-      // 1. Show Success Message
+      // Show Success Message
       setNotification({ message: `Welcome, ${user.name || 'Bartender'}!`, type: 'success' });
 
-      // 2. Wait 1 second so they can read it, then switch screens
+      // Wait 1 second so they can read it, then switch screens
       setTimeout(() => {
         onLogin(user);
       }, 1500);
 
     } else {
       setError('Invalid PIN');
-      setNotification({ message: 'Invalid PIN', type: 'error' }); // Optional: Toast for error too
+      setNotification({ message: 'Invalid PIN', type: 'error' }); // Toast for error too
       setPin('');
       setLoading(false);
     }

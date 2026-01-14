@@ -9,7 +9,7 @@ const PointOfSale = () => {
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
 
-  // 👇 CHANGE 1: Add Search State
+  //--- Add Search State ---
   const [searchTerm, setSearchTerm] = useState('');
 
   // --- TAB STATES ---
@@ -158,10 +158,10 @@ const PointOfSale = () => {
 
   const closeTab = async () => {
     if (activeTabId) {
-      // 1. Mark the tab itself as 'paid' (for history)
+      // Mark the tab itself as 'paid' (for history)
       await supabase.from('tabs').update({ status: 'paid' }).eq('id', activeTabId);
 
-      // 2. 👇 NEW: Delete the temporary items so they don't lock the database
+      // Delete the temporary items so they don't lock the database
       await supabase.from('tab_items').delete().eq('tab_id', activeTabId);
     }
   };
@@ -209,7 +209,7 @@ const PointOfSale = () => {
     }, 2000);
   };
 
-  // 👇 CHANGE 2: Update Filtering Logic
+  // --- Update Filtering Logic ---
   // If user typed something, search names. If not, use the Tabs.
   const displayedItems = searchTerm
     ? inventory.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -280,7 +280,7 @@ const PointOfSale = () => {
       {/* RIGHT: MENU */}
       <div className="menu-panel">
 
-        {/* 👇 CHANGE 3: Add the Search Bar */}
+        {/* Add the Search Bar */}
         <div style={{ marginBottom: '10px' }}>
           <input
             type="text"

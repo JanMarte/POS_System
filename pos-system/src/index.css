@@ -289,8 +289,6 @@ button:active {
     color: white;
 }
 
-/* src/index.css (Add to bottom) */
-
 /* =========================================
    7. CHART ANIMATIONS
    ========================================= */
@@ -332,8 +330,6 @@ button:active {
     transform-origin: center bottom;
     /* Anchor the scale to the bottom */
 }
-
-/* src/index.css (Add to bottom) */
 
 /* The Analytics Toggle Button */
 .analytics-toggle {
@@ -377,7 +373,7 @@ button:active {
     /* Adds a shadow */
 }
 
-/* Optional: Make the arrow animate */
+/* Make the arrow animate */
 .analytics-toggle:hover span:last-child {
     transform: scale(1.2);
     /* Makes the arrow grow */
