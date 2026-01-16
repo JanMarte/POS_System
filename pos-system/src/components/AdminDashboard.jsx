@@ -25,6 +25,9 @@ const AdminDashboard = ({ onBack, onLogout }) => {
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 👇 NEW: Track if the "Add/Edit" Modal is open
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
   // Chart & Notifications
   const [showChart, setShowChart] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
@@ -94,13 +97,20 @@ const AdminDashboard = ({ onBack, onLogout }) => {
       stock_count: item.stock_count || ''
     });
     setEditingId(item.id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsFormOpen(true); // 👈 Open the modal
     notify(`Editing ${item.name}`, "info");
   };
+
+  const startAdding = () => {
+    setNewItem({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
+    setEditingId(null);
+    setIsFormOpen(true); // 👈 Open the modal
+  }
 
   const cancelEditing = () => {
     setNewItem({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
     setEditingId(null);
+    setIsFormOpen(false); // 👈 Close the modal
   };
 
   const handleSaveItem = async () => {
@@ -134,6 +144,9 @@ const AdminDashboard = ({ onBack, onLogout }) => {
           setInventory([...inventory, savedItem[0]]);
           setNewItem({ name: '', price: '', category: 'beer', tier: '' });
           notify("Item Added Successfully!");
+          // Don't close modal if adding, maybe they want to add another?
+          // Actually, let's close it for cleaner UX
+          cancelEditing();
         }
       }
     } catch (error) {
@@ -172,6 +185,7 @@ const AdminDashboard = ({ onBack, onLogout }) => {
         }
       `}</style>
 
+      {/* CONFIRM DELETE MODAL */}
       {confirmModal.isOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px', textAlign: 'center', border: '1px solid #444' }}>
@@ -185,12 +199,74 @@ const AdminDashboard = ({ onBack, onLogout }) => {
         </div>
       )}
 
-      {/* 👇 NEW HEADER IMPLEMENTATION */}
+      {/* 👇 ADD/EDIT PRODUCT MODAL (Moved from visible page to here) */}
+      {isFormOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '500px', border: '1px solid #555' }}>
+            <h2 style={{ marginTop: 0 }}>{editingId ? `Edit: ${newItem.name}` : 'Add New Product'}</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <input className="input-dark" placeholder="Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} style={{ margin: 0 }} />
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input className="input-dark" placeholder="Price" type="number" style={{ flex: 1, margin: 0 }} value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
+                <input className="input-dark" placeholder="Stock (Optional)" type="number" style={{ flex: 1, margin: 0 }} value={newItem.stock_count} onChange={e => setNewItem({ ...newItem, stock_count: e.target.value })} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <select className="input-dark" value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })} style={{ flex: 1, margin: 0 }}>
+                  <option value="beer">Beer</option>
+                  <option value="seltzer">Seltzer</option>
+                  <option value="liquor">Liquor</option>
+                  <option value="pop">Pop</option>
+                </select>
+                <select className="input-dark" value={newItem.tier} onChange={e => setNewItem({ ...newItem, tier: e.target.value })} style={{ flex: 1, margin: 0 }}>
+                  <option value="">No Tier</option>
+                  <option value="well">Well</option>
+                  <option value="call">Call</option>
+                  <option value="premium">Premium</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button onClick={handleSaveItem} disabled={isSubmitting} style={{ flex: 1, backgroundColor: editingId ? '#007bff' : '#28a745', color: 'white', border: 'none', padding: '15px', borderRadius: '4px', cursor: isSubmitting ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '1.1rem', opacity: isSubmitting ? 0.7 : 1 }}>
+                  {isSubmitting ? 'Saving...' : (editingId ? 'Update Item' : 'Add Item')}
+                </button>
+                <button onClick={cancelEditing} disabled={isSubmitting} style={{ flex: 1, backgroundColor: '#444', color: 'white', border: 'none', padding: '15px', borderRadius: '4px', cursor: 'pointer', fontSize: '1.1rem' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       <TopBar
         title="Manager Dashboard"
         onBack={onBack}
         onLogout={onLogout}
-      // Notice: No customAction prop, so no extra buttons appear!
+        // 👇 ADDED: The "Add Product" button is now here!
+        customAction={
+          activeTab === 'inventory' && (
+            <button
+              onClick={startAdding}
+              style={{
+                marginRight: '15px',
+                padding: '8px 15px',
+                background: '#28a745', // Green
+                color: 'white',
+                border: 'none',
+                borderRadius: '50px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                display: 'flex', alignItems: 'center', gap: '5px'
+              }}
+            >
+              <span style={{ fontSize: '1.2rem', lineHeight: 0 }}>+</span> Add Product
+            </button>
+          )
+        }
       />
 
       <div className="tabs">
@@ -275,34 +351,8 @@ const AdminDashboard = ({ onBack, onLogout }) => {
 
       {!loading && activeTab === 'inventory' && (
         <div>
-          <div className="form-card">
-            <h3>{editingId ? `Edit Product: ${newItem.name}` : 'Add New Product'}</h3>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <input className="input-dark" placeholder="Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
-              <input className="input-dark" placeholder="Price" type="number" style={{ width: '100px' }} value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
-              <input className="input-dark" placeholder="Stock (Optional)" type="number" style={{ width: '120px' }} value={newItem.stock_count} onChange={e => setNewItem({ ...newItem, stock_count: e.target.value })} />
-              <select className="input-dark" value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })}>
-                <option value="beer">Beer</option>
-                <option value="seltzer">Seltzer</option>
-                <option value="liquor">Liquor</option>
-                <option value="pop">Pop</option>
-              </select>
-              <select className="input-dark" value={newItem.tier} onChange={e => setNewItem({ ...newItem, tier: e.target.value })}>
-                <option value="">No Tier</option>
-                <option value="well">Well</option>
-                <option value="call">Call</option>
-                <option value="premium">Premium</option>
-              </select>
-              {editingId ? (
-                <>
-                  <button onClick={handleSaveItem} disabled={isSubmitting} style={{ backgroundColor: '#007bff', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: isSubmitting ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: isSubmitting ? 0.7 : 1 }}>{isSubmitting ? 'Updating...' : 'Update'}</button>
-                  <button onClick={cancelEditing} disabled={isSubmitting} style={{ backgroundColor: '#666', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-                </>
-              ) : (
-                <button onClick={handleSaveItem} disabled={isSubmitting} style={{ backgroundColor: '#28a745', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1 }}>{isSubmitting ? 'Adding...' : 'Add'}</button>
-              )}
-            </div>
-          </div>
+          {/* 🚨 I REMOVED THE BIG FORM THAT WAS HERE */}
+
           <div className="inventory-grid">
             {inventory.map(item => {
               const isTracked = item.stock_count !== null;

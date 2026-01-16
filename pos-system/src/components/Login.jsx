@@ -1,107 +1,95 @@
 // src/components/Login.jsx
-import React, { useState, useEffect } from 'react';
-import { getUsers } from '../data/repository';
-import Notification from './Notification';
+import React, { useState } from 'react';
+import { supabase } from '../supabaseClient';
+import Notification from './Notification'; // Keeping your notification system!
 
 const Login = ({ onLogin }) => {
+  const [name, setName] = useState('');
   const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Notification State
   const [notification, setNotification] = useState({ message: '', type: '' });
 
-  const handleNumClick = (num) => {
-    if (pin.length < 4) {
-      setPin(pin + num);
-      setError('');
-    }
-  };
-
-  const handleClear = () => {
-    setPin('');
-    setError('');
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
+    setNotification({ message: '', type: '' });
 
-    const users = await getUsers();
-    const user = users.find(u => u.pin === pin);
+    try {
+      // 👇 1. Call the SECURE database function
+      const { data, error } = await supabase.rpc('verify_user_pin', {
+        user_name: name.trim(), // Trim spaces just in case
+        input_pin: pin
+      });
 
-    if (user) {
-      // Show Success Message
-      setNotification({ message: `Welcome, ${user.name || 'Bartender'}!`, type: 'success' });
+      if (error) throw error;
 
-      // Wait 1 second so they can read it, then switch screens
-      setTimeout(() => {
-        onLogin(user);
-      }, 1500);
+      if (data) {
+        // ✅ Success!
+        setNotification({ message: `Welcome, ${data.name}!`, type: 'success' });
 
-    } else {
-      setError('Invalid PIN');
-      setNotification({ message: 'Invalid PIN', type: 'error' }); // Toast for error too
-      setPin('');
+        // Small delay so they see the success message
+        setTimeout(() => {
+          onLogin(data);
+        }, 1000);
+      } else {
+        // ❌ Fail (User verification returned null)
+        setNotification({ message: 'Invalid Name or PIN', type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setNotification({ message: 'Login Error', type: 'error' });
+    } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (/^[0-9]$/.test(e.key)) {
-        if (pin.length < 4) {
-          setPin((prev) => prev + e.key);
-          setError('');
-        }
-      }
-      if (e.key === 'Backspace') {
-        setPin((prev) => prev.slice(0, -1));
-        setError('');
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSubmit();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pin, handleSubmit]);
-
+  // Styles to keep it looking like your dark theme
   const styles = {
     container: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#222', color: 'white' },
-    display: { fontSize: '2rem', marginBottom: '20px', padding: '10px', width: '200px', textAlign: 'center', background: '#333', borderRadius: '5px' },
-    keypad: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' },
-    button: { width: '80px', height: '80px', fontSize: '1.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', background: '#444', color: 'white' },
-    loginBtn: { gridColumn: 'span 3', backgroundColor: 'green', color: 'white' },
-    error: { color: 'red', height: '20px', marginBottom: '10px' }
+    form: { display: 'flex', flexDirection: 'column', gap: '15px', width: '300px', padding: '30px', background: '#333', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.5)' },
+    input: { padding: '15px', fontSize: '1.2rem', borderRadius: '5px', border: '1px solid #555', background: '#222', color: 'white', textAlign: 'center' },
+    button: { padding: '15px', fontSize: '1.2rem', borderRadius: '5px', border: 'none', cursor: 'pointer', backgroundColor: '#28a745', color: 'white', fontWeight: 'bold' }
   };
 
   return (
     <div style={styles.container}>
-      {/* 🔔 Notification Component */}
       <Notification
         message={notification.message}
         type={notification.type}
         onClose={() => setNotification({ message: '', type: '' })}
       />
 
-      <h2>Enter PIN</h2>
-      <div style={styles.display}>{pin.replace(/./g, '•') || '____'}</div>
-      <div style={styles.error}>{loading ? 'Verifying...' : error}</div>
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <h2 style={{ textAlign: 'center', margin: '0 0 20px 0' }}>System Login</h2>
 
-      <div style={styles.keypad}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-          <button key={num} onClick={() => handleNumClick(num.toString())} style={styles.button}>
-            {num}
-          </button>
-        ))}
-        <button onClick={handleClear} style={{ ...styles.button, backgroundColor: '#882222' }}>CLR</button>
-        <button onClick={() => handleNumClick('0')} style={styles.button}>0</button>
-        <button onClick={handleSubmit} disabled={loading} style={{ ...styles.button, ...styles.loginBtn, opacity: loading ? 0.5 : 1 }}>
-          {loading ? '...' : 'LOGIN'}
+        <input
+          style={styles.input}
+          type="text"
+          placeholder="Name (e.g. Jan)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          autoComplete="username"
+        />
+
+        <input
+          style={styles.input}
+          type="password"
+          placeholder="PIN"
+          maxLength="4"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          autoComplete="current-password"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ ...styles.button, opacity: loading ? 0.7 : 1 }}
+        >
+          {loading ? 'Verifying...' : 'LOGIN'}
         </button>
-      </div>
+      </form>
     </div>
   );
 };
