@@ -1,7 +1,8 @@
 // src/components/Login.jsx
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import Notification from './Notification'; // Keeping your notification system!
+import Notification from './Notification';
+import { hashPin } from '../data/repository'; // 👈 Import the hash function
 
 const Login = ({ onLogin }) => {
   const [name, setName] = useState('');
@@ -15,24 +16,23 @@ const Login = ({ onLogin }) => {
     setNotification({ message: '', type: '' });
 
     try {
-      // 👇 1. Call the SECURE database function
+      // 👇 1. Hash the PIN on the client side
+      const hashedPin = await hashPin(pin);
+
+      // 👇 2. Send the HASH to the database function
       const { data, error } = await supabase.rpc('verify_user_pin', {
-        user_name: name.trim(), // Trim spaces just in case
-        input_pin: pin
+        user_name: name.trim(),
+        input_pin: hashedPin // Sending the hash, not the raw PIN
       });
 
       if (error) throw error;
 
       if (data) {
-        // ✅ Success!
         setNotification({ message: `Welcome, ${data.name}!`, type: 'success' });
-
-        // Small delay so they see the success message
         setTimeout(() => {
           onLogin(data);
         }, 1000);
       } else {
-        // ❌ Fail (User verification returned null)
         setNotification({ message: 'Invalid Name or PIN', type: 'error' });
       }
     } catch (err) {
@@ -43,7 +43,6 @@ const Login = ({ onLogin }) => {
     }
   };
 
-  // Styles to keep it looking like your dark theme
   const styles = {
     container: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#222', color: 'white' },
     form: { display: 'flex', flexDirection: 'column', gap: '15px', width: '300px', padding: '30px', background: '#333', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.5)' },

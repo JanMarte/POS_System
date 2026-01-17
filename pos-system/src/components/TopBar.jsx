@@ -1,9 +1,20 @@
 // src/components/TopBar.jsx
 import React from 'react';
 
-const TopBar = ({ title, onBack, onLogout, customAction }) => {
-    // Static user data
-    const user = { name: 'Jan Marte', role: 'Admin', initials: 'JM' };
+const TopBar = ({ title, onBack, onLogout, customAction, user }) => {
+
+    // Safety check in case user is null (though App.jsx prevents this)
+    const userData = user || { name: 'Guest', role: 'Staff' };
+
+    // Calculate Initials (e.g. "Jan Marte" -> "JM")
+    const getInitials = (name) => {
+        if (!name) return '??';
+        const parts = name.split(' ');
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    };
+
+    const initials = getInitials(userData.name);
 
     return (
         <div style={{
@@ -27,7 +38,7 @@ const TopBar = ({ title, onBack, onLogout, customAction }) => {
                         onClick={onBack}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '5px',
-                            background: 'transparent', // 👈 CHANGED to match other pills
+                            background: 'transparent',
                             color: '#ccc',
                             border: '1px solid #666',
                             padding: '8px 20px',
@@ -37,7 +48,6 @@ const TopBar = ({ title, onBack, onLogout, customAction }) => {
                             transition: 'all 0.2s',
                             fontSize: '0.9rem'
                         }}
-                        // Hover effect similar to Logout but maybe Blue to signify navigation
                         onMouseOver={(e) => { e.currentTarget.style.borderColor = '#007bff'; e.currentTarget.style.color = 'white'; e.currentTarget.style.background = '#007bff' }}
                         onMouseOut={(e) => { e.currentTarget.style.borderColor = '#666'; e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = 'transparent' }}
                     >
@@ -69,11 +79,11 @@ const TopBar = ({ title, onBack, onLogout, customAction }) => {
                         fontWeight: 'bold', fontSize: '0.8rem', color: 'white',
                         border: '1px solid #252525'
                     }}>
-                        {user.initials}
+                        {initials}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.1', textAlign: 'left' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'white' }}>{user.name}</span>
-                        <span style={{ fontSize: '0.65rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{user.role}</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'white' }}>{userData.name}</span>
+                        <span style={{ fontSize: '0.65rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{userData.role}</span>
                     </div>
                 </div>
 

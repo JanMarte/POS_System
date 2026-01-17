@@ -21,17 +21,18 @@ function App() {
     setView('pos');
   };
 
-  // Check if user is admin/manager
-  const canAccessDashboard = currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager');
+  // Check if user is admin, manager, OR bartender
+  const canAccessDashboard = currentUser && (
+    currentUser.role === 'admin' ||
+    currentUser.role === 'manager' ||
+    currentUser.role === 'bartender'
+  );
 
   return (
     <div>
       {!currentUser ? (
         <Login onLogin={handleLogin} />
       ) : (
-        // 👇 UPDATED CONTAINER STYLES
-        // If view is 'pos', lock the screen (hidden). 
-        // If view is 'dashboard', let it scroll (auto).
         <div style={{
           height: '100vh',
           overflow: view === 'pos' ? 'hidden' : 'auto',
@@ -39,19 +40,19 @@ function App() {
         }}>
 
           <div style={{
-            // Ensure the content fills the screen for POS, 
-            // but grows naturally for Dashboard
             height: view === 'pos' ? '100%' : 'auto',
             minHeight: '100%'
           }}>
             {view === 'pos' && (
               <PointOfSale
+                user={currentUser}
                 onLogout={handleLogout}
                 onNavigateToDashboard={canAccessDashboard ? () => setView('dashboard') : null}
               />
             )}
             {view === 'dashboard' && (
               <AdminDashboard
+                user={currentUser}
                 onBack={() => setView('pos')}
                 onLogout={handleLogout}
               />

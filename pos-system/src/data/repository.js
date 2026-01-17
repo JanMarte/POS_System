@@ -1,6 +1,17 @@
 // src/data/repository.js
 import { supabase } from '../supabaseClient';
 
+// 👇 SECURITY: SHA-256 Hashing Helper
+export const hashPin = async (pin) => {
+  if (!pin) return null;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pin);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+};
+
 // --- INVENTORY ---
 export const getInventory = async () => {
   const { data, error } = await supabase
@@ -30,7 +41,7 @@ export const updateInventoryItem = async (id, updates) => {
   return data;
 };
 
-// 👇 NEW: Deducts stock immediately (used for Tabs)
+// Deducts stock immediately (used for Tabs)
 export const deductStock = async (items) => {
   for (const item of items) {
     if (!item.id || !item.quantity) continue;
@@ -58,7 +69,6 @@ export const deductStock = async (items) => {
 
 // --- SALES ---
 export const saveSale = async (order) => {
-  // 1. Save Money Record
   const { error } = await supabase
     .from('sales')
     .insert([{
@@ -71,10 +81,7 @@ export const saveSale = async (order) => {
 
   if (error) console.error('Error saving sale:', error);
 
-  // 2. Inventory Logic
-  // Only deduct stock if it wasn't already taken out (via Tab)
   const itemsToDeduct = order.items.filter(item => !item.alreadyDeducted);
-
   if (itemsToDeduct.length > 0) {
     await deductStock(itemsToDeduct);
   }
@@ -89,8 +96,35 @@ export const clearSales = async () => {
   await supabase.from('sales').delete().neq('id', 0);
 }
 
-// --- USERS ---
+// --- USERS (EMPLOYEES) ---
 export const getUsers = async () => {
-  const { data } = await supabase.from('users').select('*');
+  const { data, error } = await supabase.from('users').select('*').order('name', { ascending: true });
+  if (error) console.error(error);
   return data || [];
+};
+
+// 👇 UPDATED: Automatically hashes PINs when adding users
+export const addUser = async (user) => {
+  if (user.pin) {
+    user.pin = await hashPin(user.pin);
+  }
+  const { data, error } = await supabase.from('users').insert([user]).select();
+  if (error) { console.error(error); return null; }
+  return data;
+};
+
+// 👇 UPDATED: Automatically hashes PINs when updating users
+export const updateUser = async (id, updates) => {
+  if (updates.pin) {
+    updates.pin = await hashPin(updates.pin);
+  }
+  const { data, error } = await supabase.from('users').update(updates).eq('id', id).select();
+  if (error) { console.error(error); return null; }
+  return data;
+};
+
+export const deleteUser = async (id) => {
+  const { error } = await supabase.from('users').delete().eq('id', id);
+  if (error) return false;
+  return true;
 };

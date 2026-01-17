@@ -5,9 +5,9 @@ import { supabase } from '../supabaseClient';
 import Notification from './Notification';
 import VoidModal from './VoidModal';
 import { voidItem } from '../services/tabService';
-import TopBar from './TopBar'; // 👈 IMPORT TOPBAR
+import TopBar from './TopBar';
 
-const PointOfSale = ({ onLogout, onNavigateToDashboard }) => { // 👈 ADD onNavigateToDashboard
+const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [inventory, setInventory] = useState([]);
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
@@ -363,13 +363,13 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard }) => { // 👈 ADD onNav
         }
       `}</style>
 
-      {/* 👇 1. CLEAN TOP BAR (Passing the Dashboard Navigation Function) */}
+      {/* 👇 PASS USER AND UPDATE BUTTON TEXT */}
       <TopBar
         title="Point of Sale"
         onLogout={onLogout}
-        // 👇 Add a custom button to go to Admin Dashboard
+        user={user}
         customAction={
-          onNavigateToDashboard && ( // Only show if user has permission (prop exists)
+          onNavigateToDashboard && (
             <button
               className="btn-primary"
               onClick={onNavigateToDashboard}
@@ -384,13 +384,12 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard }) => { // 👈 ADD onNav
                 fontWeight: 'bold'
               }}
             >
-              ADMIN DASHBOARD
+              DASHBOARD
             </button>
           )
         }
       />
 
-      {/* 👇 2. CONTENT WRAPPER FOR COLUMNS */}
       <div className="pos-content-wrapper">
 
         <div className="ticket-panel">
