@@ -1,6 +1,6 @@
 // src/components/PointOfSale.jsx
 import React, { useState, useEffect } from 'react';
-import { getInventory, saveSale, deductStock } from '../data/repository';
+import { getInventory, saveSale, deductStock, getHappyHours } from '../data/repository'; // 👈 Import Happy Hours
 import { supabase } from '../supabaseClient';
 import Notification from './Notification';
 import VoidModal from './VoidModal';
@@ -10,6 +10,7 @@ import { printReceipt } from '../utils/receiptService';
 
 const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [inventory, setInventory] = useState([]);
+  const [happyHours, setHappyHours] = useState([]); // 👈 Stores rules
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,8 +64,38 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   };
 
   useEffect(() => {
-    refreshInventory();
+    const loadData = async () => {
+      const inv = await getInventory();
+      const hh = await getHappyHours();
+      setInventory(inv);
+      setHappyHours(hh);
+    };
+    loadData();
   }, []);
+
+  // 👇 HAPPY HOUR CHECKER
+  const checkHappyHour = (item) => {
+    const now = new Date();
+    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const rule = happyHours.find(r => {
+      // Must match day
+      if (!r.days.includes(currentDay)) return false;
+      // Must match category (or all)
+      if (r.category !== 'all' && r.category !== item.category) return false;
+
+      // Check Time Range
+      const [startH, startM] = r.start_time.split(':').map(Number);
+      const [endH, endM] = r.end_time.split(':').map(Number);
+      const startTotal = startH * 60 + startM;
+      const endTotal = endH * 60 + endM;
+
+      return currentMinutes >= startTotal && currentMinutes < endTotal;
+    });
+
+    return rule;
+  };
 
   // --- CART LOGIC ---
 
@@ -85,16 +116,29 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   };
 
   const addToCart = (product) => {
+    // Check for Automatic Discount
+    const rule = checkHappyHour(product);
+    let finalPrice = product.price;
+    let isHappyHour = false;
+
+    if (rule) {
+      finalPrice = Math.max(0, product.price - rule.discount_amount);
+      isHappyHour = true;
+    }
+
     setCart(prevCart => {
-      const existing = prevCart.find(item => item.id === product.id && !item.tab_id);
+      // Find existing item with SAME price (so regular and happy hour items don't merge)
+      const existing = prevCart.find(item => item.id === product.id && !item.tab_id && item.price === finalPrice);
 
       if (existing) {
-        return prevCart.map(item => (item.id === product.id && !item.tab_id)
+        return prevCart.map(item => (item === existing)
           ? { ...item, quantity: (item.quantity || 1) + 1 }
           : item
         );
       } else {
-        return [...prevCart, { ...product, quantity: 1 }];
+        const newItem = { ...product, price: finalPrice, quantity: 1, isHappyHour };
+        if (isHappyHour) notify(`Happy Hour! ${rule.name} applied.`);
+        return [...prevCart, newItem];
       }
     });
   };
@@ -105,14 +149,14 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       setItemToVoid(item);
       setIsVoidModalOpen(true);
     } else {
-      removeFromCart(item.id);
+      removeFromCart(item);
     }
   };
 
-  const removeFromCart = (itemId) => {
-    setCart(prevCart => {
-      return prevCart.map(item => {
-        if (item.id === itemId && !item.tab_id) {
+  const removeFromCart = (targetItem) => {
+    setCart(prev => {
+      return prev.map(item => {
+        if (item === targetItem) {
           return { ...item, quantity: item.quantity - 1 };
         }
         return item;
@@ -143,11 +187,10 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
 
       setCart(prev => {
         return prev.map(item => {
-          if (item.id === itemToVoid.id && item.tab_id === itemToVoid.tab_id) {
+          if (item === itemToVoid) {
             const newQty = item.quantity - 1;
             if (newQty <= 0) return null;
-            const newDbIds = item.db_ids ? item.db_ids.slice(0, -1) : [];
-            return { ...item, quantity: newQty, db_ids: newDbIds };
+            return { ...item, quantity: newQty };
           }
           return item;
         }).filter(Boolean);
@@ -322,7 +365,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
     setIsCheckoutOpen(false);
     setCheckoutStep('payment');
     setCompletedOrder(null);
-    setDiscount({ type: null, value: 0 }); // 👈 Clears discount when cancelled
+    setDiscount({ type: null, value: 0 }); // 👈 Fix: Clears discount when cancelled
   };
 
   const finalizeSale = async () => {
@@ -391,12 +434,14 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         .menu-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; padding-bottom: 20px; align-content: start; }
         .cart-list-container { flex: 1; overflow-y: auto; margin-bottom: 10px; }
         
+        /* Disabled Button Style */
         button:disabled {
           opacity: 0.6;
           cursor: not-allowed !important;
           filter: grayscale(0.5);
         }
 
+        /* Dots Animation */
         @keyframes dots {
           0%, 20% { content: "."; }
           40% { content: ".."; }
@@ -467,11 +512,16 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
                 key={`${item.id}-${item.tab_id ? 'saved' : 'new'}-${index}`}
                 className="cart-item"
                 onClick={() => handleRemoveRequest(item)}
-                style={{ pointerEvents: isBusy ? 'none' : 'auto' }}
+                style={{
+                  borderLeft: item.isHappyHour ? '4px solid #e040fb' : 'none', // 👈 VISUAL INDICATOR
+                  paddingLeft: item.isHappyHour ? '10px' : '0',
+                  pointerEvents: isBusy ? 'none' : 'auto'
+                }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                   <span>
                     {item.name}
+                    {item.isHappyHour && <span style={{ fontSize: '0.7rem', background: '#e040fb', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>HH</span>}
                     {item.tab_id && <span style={{ fontSize: '0.7rem', background: '#17a2b8', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>SAVED</span>}
                     {item.quantity > 1 && <span style={{ marginLeft: '8px', background: '#007bff', padding: '2px 6px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold' }}>x{item.quantity}</span>}
                   </span>

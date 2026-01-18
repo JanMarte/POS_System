@@ -1,6 +1,7 @@
 // src/data/repository.js
 import { supabase } from '../supabaseClient';
 
+// --- SECURITY: SHA-256 Hashing Helper ---
 export const hashPin = async (pin) => {
   if (!pin) return null;
   const encoder = new TextEncoder();
@@ -40,6 +41,26 @@ export const updateInventoryItem = async (id, updates) => {
   return data;
 };
 
+// --- HAPPY HOUR SCHEDULER ---
+export const getHappyHours = async () => {
+  const { data, error } = await supabase.from('happy_hours').select('*').order('id', { ascending: true });
+  if (error) console.error(error);
+  return data || [];
+};
+
+export const addHappyHour = async (rule) => {
+  const { data, error } = await supabase.from('happy_hours').insert([rule]).select();
+  if (error) { console.error(error); return null; }
+  return data;
+};
+
+export const deleteHappyHour = async (id) => {
+  const { error } = await supabase.from('happy_hours').delete().eq('id', id);
+  if (error) return false;
+  return true;
+};
+
+// --- SALES ---
 export const deductStock = async (items) => {
   for (const item of items) {
     if (!item.id || !item.quantity) continue;
@@ -51,13 +72,13 @@ export const deductStock = async (items) => {
       .single();
 
     if (currentItem && currentItem.stock_count !== null) {
-      const newStock = currentItem.stock_count - item.quantity;
+      const newStock = Math.max(0, currentItem.stock_count - item.quantity);
       const shouldBeAvailable = newStock > 0;
 
       await supabase
         .from('inventory')
         .update({
-          stock_count: Math.max(0, newStock),
+          stock_count: newStock,
           is_available: shouldBeAvailable
         })
         .eq('id', item.inventory_id || item.id);
@@ -65,17 +86,15 @@ export const deductStock = async (items) => {
   }
 };
 
-// --- SALES ---
 export const saveSale = async (order) => {
   const { error } = await supabase
     .from('sales')
     .insert([{
       total: order.total,
       tip: order.tip || 0.00,
-      discount: order.discount || 0.00, // Make sure discount is saved
+      discount: order.discount || 0.00,
       items: order.items,
       payment_method: order.method,
-      // 👇 UPDATED: Check for employee_name OR employee
       employee_name: order.employee_name || order.employee || 'Unknown',
       date: new Date().toISOString()
     }]);

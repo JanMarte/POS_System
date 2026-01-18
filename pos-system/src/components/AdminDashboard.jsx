@@ -10,7 +10,10 @@ import {
   getUsers,
   addUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  getHappyHours,
+  addHappyHour,
+  deleteHappyHour
 } from '../data/repository';
 import Notification from './Notification';
 import SalesChart from './SalesChart';
@@ -22,6 +25,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [users, setUsers] = useState([]);
+  const [happyHours, setHappyHours] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // GLOBAL BUSY STATE
@@ -43,7 +47,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
   const canManageEmployees = !isBartender;
 
   // Form State
-  const [modalType, setModalType] = useState('product');
+  const [modalType, setModalType] = useState('product'); // 'product' | 'employee' | 'happyHour'
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   // Product Form Data
@@ -51,6 +55,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
 
   // Employee Form Data
   const [newUser, setNewUser] = useState({ name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false });
+
+  // Happy Hour Form Data
+  const [newRule, setNewRule] = useState({
+    name: '', start_time: '16:00', end_time: '19:00',
+    discount_amount: '', category: 'beer', days: []
+  });
 
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,10 +74,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
 
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, message: '', onConfirm: null });
 
+  const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const promises = [getInventory(), getSales()];
+      const promises = [getInventory(), getSales(), getHappyHours()];
       if (canManageEmployees) {
         promises.push(getUsers());
       }
@@ -75,8 +87,9 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
       const results = await Promise.all(promises);
       setInventory(results[0]);
       setSales(results[1]);
+      setHappyHours(results[2]);
       if (canManageEmployees) {
-        setUsers(results[2]);
+        setUsers(results[3]);
       }
       setLoading(false);
     };
@@ -137,6 +150,29 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
 
   // --- ACTIONS ---
   const handleDeleteRequest = (type, id) => {
+    const confirmDelete = async (action) => {
+      setIsBusy(true);
+      const success = await action();
+      setIsBusy(false);
+      setConfirmModal({ isOpen: false, message: '', onConfirm: null });
+      if (success) notify(`${type} deleted`);
+      else notify("Error deleting", "error");
+    };
+
+    if (type === 'happyHour') {
+      const rule = happyHours.find(r => r.id === id);
+      setConfirmModal({
+        isOpen: true,
+        message: `Delete Rule "${rule?.name}"?`,
+        onConfirm: () => confirmDelete(async () => {
+          const ok = await deleteHappyHour(id);
+          if (ok) setHappyHours(happyHours.filter(h => h.id !== id));
+          return ok;
+        })
+      });
+      return;
+    }
+
     if (type === 'history') {
       setConfirmModal({
         isOpen: true,
@@ -190,45 +226,48 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
   };
 
   // --- MODALS ---
-  const openProductModal = (product = null) => {
-    setModalType('product');
-    if (product) {
-      setEditingId(product.id);
-      setNewItem({
-        name: product.name,
-        price: product.price,
-        category: product.category,
-        tier: product.tier || '',
-        stock_count: product.stock_count || ''
-      });
-    } else {
-      setEditingId(null);
-      setNewItem({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
-    }
+  const openModal = (type, data = null) => {
+    setModalType(type);
+    setEditingId(data?.id || null);
     setIsFormOpen(true);
+    if (type === 'product') {
+      if (data) {
+        setNewItem({
+          name: data.name, price: data.price, category: data.category,
+          tier: data.tier || '', stock_count: data.stock_count || ''
+        });
+      } else {
+        setNewItem({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
+      }
+    }
+    if (type === 'employee') {
+      if (data) {
+        setNewUser({
+          name: data.name, pin: '', confirmPin: '', role: data.role,
+          can_discount: data.can_discount || false
+        });
+      } else {
+        setNewUser({ name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false });
+      }
+    }
+    if (type === 'happyHour') {
+      setNewRule({ name: '', start_time: '16:00', end_time: '19:00', discount_amount: '', category: 'beer', days: [] });
+    }
   };
 
-  const openUserModal = (userToEdit = null) => {
-    setModalType('employee');
-    if (userToEdit) {
-      setEditingId(userToEdit.id);
-      setNewUser({
-        name: userToEdit.name,
-        pin: '',
-        confirmPin: '',
-        role: userToEdit.role,
-        can_discount: userToEdit.can_discount || false
-      });
-    } else {
-      setEditingId(null);
-      setNewUser({ name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false });
-    }
-    setIsFormOpen(true);
-  };
+  const openProductModal = (product = null) => openModal('product', product);
+  const openUserModal = (userToEdit = null) => openModal('employee', userToEdit);
 
   const closeModal = () => {
     setIsFormOpen(false);
     setEditingId(null);
+  };
+
+  const toggleDay = (day) => {
+    setNewRule(prev => {
+      if (prev.days.includes(day)) return { ...prev, days: prev.days.filter(d => d !== day) };
+      return { ...prev, days: [...prev.days, day] };
+    });
   };
 
   // --- SAVE HANDLERS ---
@@ -300,6 +339,18 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
     setIsSubmitting(false);
   };
 
+  const handleSaveHappyHour = async () => {
+    if (!newRule.name || !newRule.discount_amount || newRule.days.length === 0) return notify("Missing fields", "error");
+    setIsSubmitting(true);
+    const added = await addHappyHour(newRule);
+    if (added) {
+      setHappyHours([...happyHours, added[0]]);
+      notify("Happy Hour Added!");
+      closeModal();
+    }
+    setIsSubmitting(false);
+  };
+
   // Stats Logic
   const stats = sales.reduce((acc, order) => {
     const amount = parseFloat(order.total);
@@ -320,6 +371,9 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         .stats-grid { display: flex; gap: 20px; align-items: flex-start; width: 100%; }
         .stats-mobile-toggle { display: none; }
         .user-card { background: #333; padding: 15px; border-radius: 8px; border: 1px solid #444; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .hh-card { background: #2a2a2a; border: 1px solid #555; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; flex-direction: column; justify-content: space-between; }
+        .day-bubble { padding: 5px 10px; border-radius: 15px; background: #444; color: #aaa; cursor: pointer; border: 1px solid transparent; font-size: 0.8rem; }
+        .day-bubble.selected { background: #007bff; color: white; border-color: #0056b3; }
         .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
         .badge-admin { background: #d9534f; color: white; }
         .badge-manager { background: #f0ad4e; color: black; }
@@ -342,6 +396,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         }
       `}</style>
 
+      {/* TRANSACTION DETAILS MODAL */}
       {selectedSale && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px', border: '1px solid #666', background: '#222' }}>
@@ -408,10 +463,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* ... (Confirm Delete Modal, Dynamic Edit Modal, TopBar, Tabs, Sales View, Inventory View, Employees View) ... */}
-      {/* ... [Rest of file content kept intact as previously provided] ... */}
-
-      {/* (Confirm Modal) */}
+      {/* CONFIRM DELETE MODAL */}
       {confirmModal.isOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px', textAlign: 'center', border: '1px solid #444' }}>
@@ -427,12 +479,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* (Dynamic Add/Edit Modal) */}
+      {/* DYNAMIC ADD/EDIT MODAL */}
       {isFormOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '500px', border: '1px solid #555' }}>
             <h2 style={{ marginTop: 0 }}>
-              {editingId ? 'Edit' : 'Add'} {modalType === 'product' ? 'Product' : 'Employee'}
+              {editingId ? 'Edit' : 'Add'} {modalType === 'happyHour' ? 'Rule' : modalType}
             </h2>
 
             {/* Product Form */}
@@ -510,6 +562,55 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                 </div>
               </div>
             )}
+
+            {/* Happy Hour Form */}
+            {modalType === 'happyHour' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <input className="input-dark" placeholder="Rule Name (e.g. Friday Beers)" value={newRule.name} onChange={e => setNewRule({ ...newRule, name: e.target.value })} />
+
+                <label style={{ color: '#aaa', fontSize: '0.9rem' }}>Active Days</label>
+                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                  {weekDays.map(day => (
+                    <div key={day} onClick={() => toggleDay(day)} className={`day-bubble ${newRule.days.includes(day) ? 'selected' : ''}`}>
+                      {day.substring(0, 3)}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>Start Time</label>
+                    <input type="time" className="input-dark" value={newRule.start_time} onChange={e => setNewRule({ ...newRule, start_time: e.target.value })} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>End Time</label>
+                    <input type="time" className="input-dark" value={newRule.end_time} onChange={e => setNewRule({ ...newRule, end_time: e.target.value })} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>Category</label>
+                    <select className="input-dark" value={newRule.category} onChange={e => setNewRule({ ...newRule, category: e.target.value })}>
+                      <option value="all">All Items</option>
+                      <option value="beer">Beer</option>
+                      <option value="liquor">Liquor</option>
+                      <option value="seltzer">Seltzer</option>
+                      <option value="pop">Pop</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>Discount ($)</label>
+                    <input type="number" placeholder="1.00" className="input-dark" value={newRule.discount_amount} onChange={e => setNewRule({ ...newRule, discount_amount: e.target.value })} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <button onClick={handleSaveHappyHour} disabled={isSubmitting} className="btn-primary" style={{ flex: 1 }}>Save Rule</button>
+                  <button onClick={closeModal} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -532,6 +633,11 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                 + Add Employee
               </button>
             )}
+            {activeTab === 'happyHour' && canManageInventory && (
+              <button onClick={() => openModal('happyHour')} className="btn-primary" style={{ padding: '8px 15px', background: '#9c27b0', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold' }}>
+                + Add Rule
+              </button>
+            )}
           </div>
         }
       />
@@ -543,6 +649,9 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         )}
         {canManageEmployees && (
           <button onClick={() => setActiveTab('employees')} className={`tab-btn ${activeTab === 'employees' ? 'active' : ''}`}>Employees</button>
+        )}
+        {canManageInventory && (
+          <button onClick={() => setActiveTab('happyHour')} className={`tab-btn ${activeTab === 'happyHour' ? 'active' : ''}`}>Happy Hour</button>
         )}
       </div>
 
@@ -641,6 +750,24 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
             </tbody>
           </table>
           {getFilteredSales().length === 0 && <p style={{ marginTop: '20px', color: '#888' }}>No sales found matching criteria.</p>}
+        </div>
+      )}
+
+      {/* HAPPY HOUR VIEW */}
+      {!loading && activeTab === 'happyHour' && canManageInventory && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+          {happyHours.map(hh => (
+            <div key={hh.id} className="hh-card">
+              <div>
+                <h3 style={{ margin: '0 0 5px 0', color: '#e040fb' }}>{hh.name}</h3>
+                <div style={{ fontWeight: 'bold', color: '#28a745', marginBottom: '5px' }}>-${hh.discount_amount} Off ({hh.category})</div>
+                <div style={{ color: '#ccc', fontSize: '0.9rem' }}>{hh.start_time.slice(0, 5)} - {hh.end_time.slice(0, 5)}</div>
+                <div style={{ color: '#888', fontSize: '0.8rem' }}>{hh.days.join(', ')}</div>
+              </div>
+              <button onClick={() => handleDeleteRequest('happyHour', hh.id)} style={{ marginTop: '10px', background: '#d9534f', border: 'none', color: 'white', padding: '5px', width: '100%', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>
+            </div>
+          ))}
+          {happyHours.length === 0 && <p>No Active Happy Hour Rules.</p>}
         </div>
       )}
 
