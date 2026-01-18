@@ -76,6 +76,7 @@ export const saveSale = async (order) => {
       tip: order.tip || 0.00,
       items: order.items,
       payment_method: order.method,
+      employee_name: order.employee || 'Unknown', // 👈 NEW FIELD
       date: new Date().toISOString()
     }]);
 
@@ -103,7 +104,6 @@ export const getUsers = async () => {
   return data || [];
 };
 
-// 👇 UPDATED: Automatically hashes PINs when adding users
 export const addUser = async (user) => {
   if (user.pin) {
     user.pin = await hashPin(user.pin);
@@ -113,7 +113,6 @@ export const addUser = async (user) => {
   return data;
 };
 
-// 👇 UPDATED: Automatically hashes PINs when updating users
 export const updateUser = async (id, updates) => {
   if (updates.pin) {
     updates.pin = await hashPin(updates.pin);

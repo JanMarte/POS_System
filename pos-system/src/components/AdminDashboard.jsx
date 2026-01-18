@@ -15,6 +15,7 @@ import {
 import Notification from './Notification';
 import SalesChart from './SalesChart';
 import TopBar from './TopBar';
+import { printReceipt } from '../utils/receiptService'; // 👈 IMPORT SERVICE
 
 const AdminDashboard = ({ onBack, onLogout, user }) => {
   const [activeTab, setActiveTab] = useState('sales');
@@ -23,9 +24,18 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // GLOBAL BUSY STATE
+  const [isBusy, setIsBusy] = useState(false);
+
   // SEARCH & FILTER STATE
   const [searchTerm, setSearchTerm] = useState('');
-  const [inventoryFilter, setInventoryFilter] = useState('all'); // 'all' | 'low' | 'sold_out'
+  const [inventoryFilter, setInventoryFilter] = useState('all');
+
+  // SALES FILTER & SORT STATE
+  const [salesFilterMethod, setSalesFilterMethod] = useState('all');
+  const [salesFilterEmployee, setSalesFilterEmployee] = useState('all');
+  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+  const [selectedSale, setSelectedSale] = useState(null);
 
   // --- PERMISSIONS ---
   const isBartender = user && user.role === 'bartender';
@@ -73,22 +83,56 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
     loadData();
   }, [canManageEmployees]);
 
-  // --- FILTERED INVENTORY LOGIC ---
+  // --- SALES FILTER LOGIC ---
+  const getFilteredSales = () => {
+    let filtered = sales.filter(sale => {
+      if (salesFilterMethod !== 'all' && sale.payment_method !== salesFilterMethod) return false;
+      if (salesFilterEmployee !== 'all' && (sale.employee_name || 'Unknown') !== salesFilterEmployee) return false;
+      return true;
+    });
+
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        if (['total', 'tip'].includes(sortConfig.key)) {
+          aValue = parseFloat(aValue || 0);
+          bValue = parseFloat(bValue || 0);
+        }
+        if (sortConfig.key === 'date') {
+          aValue = new Date(aValue).getTime();
+          bValue = new Date(bValue).getTime();
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return filtered;
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const uniqueEmployees = [...new Set(sales.map(s => s.employee_name || 'Unknown'))].filter(Boolean);
+
+  // --- INVENTORY LOGIC ---
   const filteredInventory = inventory.filter(item => {
-    // 1. Text Search
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
-
-    // 2. Status Check
     const isTracked = item.stock_count !== null;
     const isSoldOut = !item.is_available || (isTracked && item.stock_count <= 0);
     const isLowStock = !isSoldOut && isTracked && item.stock_count < 10;
-
-    // 3. Apply Filter Button
     if (inventoryFilter === 'low') return isLowStock;
     if (inventoryFilter === 'sold_out') return isSoldOut;
-
-    return true; // 'all'
+    return true;
   });
 
   // --- ACTIONS ---
@@ -98,10 +142,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         isOpen: true,
         message: 'Are you sure you want to WIPE ALL sales history?',
         onConfirm: async () => {
+          setIsBusy(true);
           await clearSales();
           setSales([]);
           notify("Sales History Reset", "success");
           setConfirmModal({ isOpen: false, message: '', onConfirm: null });
+          setIsBusy(false);
         }
       });
     } else if (type === 'product') {
@@ -110,6 +156,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         isOpen: true,
         message: `Delete Product "${item?.name}"?`,
         onConfirm: async () => {
+          setIsBusy(true);
           const success = await deleteInventoryItem(id);
           if (success) {
             setInventory(inventory.filter(i => i.id !== id));
@@ -118,6 +165,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
             notify("Cannot delete: Item in Open Tab!", "error");
           }
           setConfirmModal({ isOpen: false, message: '', onConfirm: null });
+          setIsBusy(false);
         }
       });
     } else if (type === 'user') {
@@ -126,6 +174,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         isOpen: true,
         message: `Delete Employee "${u?.name}"?`,
         onConfirm: async () => {
+          setIsBusy(true);
           const success = await deleteUser(id);
           if (success) {
             setUsers(users.filter(x => x.id !== id));
@@ -134,12 +183,13 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
             notify("Could not delete employee", "error");
           }
           setConfirmModal({ isOpen: false, message: '', onConfirm: null });
+          setIsBusy(false);
         }
       });
     }
   };
 
-  // --- OPEN/CLOSE MODALS ---
+  // --- MODALS ---
   const openProductModal = (product = null) => {
     setModalType('product');
     if (product) {
@@ -260,15 +310,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
     <div className="dashboard-container">
       <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ message: '', type: '' })} />
       <style>{`
-        /* --- UNIFORM GRID LAYOUT --- */
-        .inventory-grid {
-          display: grid;
-          /* Adjust 220px to make cards wider or narrower */
-          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-          gap: 20px;
-          align-items: stretch; /* Forces equal height */
-        }
-
+        .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; align-items: stretch; }
         .stats-grid { display: flex; gap: 20px; align-items: flex-start; width: 100%; }
         .stats-mobile-toggle { display: none; }
         .user-card { background: #333; padding: 15px; border-radius: 8px; border: 1px solid #444; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -276,6 +318,36 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         .badge-admin { background: #d9534f; color: white; }
         .badge-manager { background: #f0ad4e; color: black; }
         .badge-bartender { background: #0275d8; color: white; }
+        
+        /* CLICKABLE SORT HEADERS */
+        .sortable-th { cursor: pointer; user-select: none; transition: background 0.2s; }
+        .sortable-th:hover { background: #444; }
+        .sort-icon { font-size: 0.8rem; margin-left: 5px; color: #888; }
+
+        /* CLICKABLE ROWS */
+        .clickable-row { cursor: pointer; transition: background 0.1s; }
+        .clickable-row:hover { background: #3a3a3a; }
+
+        /* DISABLED BUTTONS */
+        button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed !important;
+          filter: grayscale(0.5);
+        }
+
+        /* 👇 DOTS ANIMATION */
+        @keyframes dots {
+          0%, 20% { content: "."; }
+          40% { content: ".."; }
+          60%, 100% { content: "..."; }
+        }
+        .animated-dots::after {
+          content: ".";
+          animation: dots 1.5s steps(1, end) infinite;
+          display: inline-block;
+          width: 0px; 
+          text-align: left;
+        }
 
         @media (max-width: 768px) {
           .stats-card-container { display: ${isStatsOpen ? 'block' : 'none'} !important; margin-top: 10px; }
@@ -287,6 +359,68 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         }
       `}</style>
 
+      {/* TRANSACTION DETAILS MODAL */}
+      {selectedSale && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px', border: '1px solid #666', background: '#222' }}>
+            <h2 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginTop: 0 }}>🧾 Transaction Details</h2>
+
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ color: '#aaa' }}>Date:</span>
+                <span>{new Date(selectedSale.date).toLocaleString()}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ color: '#aaa' }}>Employee:</span>
+                <span style={{ fontWeight: 'bold' }}>{selectedSale.employee_name || 'Unknown'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ color: '#aaa' }}>Method:</span>
+                <span style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>{selectedSale.payment_method}</span>
+              </div>
+            </div>
+
+            <div style={{ maxHeight: '200px', overflowY: 'auto', borderTop: '1px dashed #444', borderBottom: '1px dashed #444', padding: '10px 0' }}>
+              {selectedSale.items && selectedSale.items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                  <span>{item.quantity > 1 ? `${item.quantity}x ` : ''}{item.name}</span>
+                  <span>${(item.price * (item.quantity || 1)).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span>Subtotal (approx):</span>
+                <span>${parseFloat(selectedSale.total).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', color: '#17a2b8' }}>
+                <span>Tip:</span>
+                <span>+${parseFloat(selectedSale.tip || 0).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 'bold', borderTop: '1px solid #444', paddingTop: '10px' }}>
+                <span>Total:</span>
+                <span style={{ color: '#28a745' }}>${(parseFloat(selectedSale.total) + parseFloat(selectedSale.tip || 0)).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* 👇 PRINT BUTTON */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button
+                onClick={() => printReceipt(selectedSale)}
+                style={{ flex: 1, padding: '12px', background: '#fff', color: '#000', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                🖨️ Print
+              </button>
+              <button
+                onClick={() => setSelectedSale(null)}
+                style={{ flex: 1, padding: '12px', background: '#444', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CONFIRM DELETE MODAL */}
       {confirmModal.isOpen && (
         <div className="modal-overlay">
@@ -294,8 +428,10 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
             <h2 style={{ color: '#ff4d4f', marginTop: 0 }}>⚠️ Confirm Action</h2>
             <p style={{ fontSize: '1.2rem', margin: '20px 0', fontWeight: 'bold' }}>{confirmModal.message}</p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button onClick={() => setConfirmModal({ isOpen: false, message: '', onConfirm: null })} style={{ padding: '10px 20px', background: '#444', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={confirmModal.onConfirm} style={{ padding: '10px 20px', background: '#d9534f', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Yes, Do It</button>
+              <button disabled={isBusy} onClick={() => setConfirmModal({ isOpen: false, message: '', onConfirm: null })} style={{ padding: '10px 20px', background: '#444', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>Cancel</button>
+              <button disabled={isBusy} onClick={confirmModal.onConfirm} style={{ padding: '10px 20px', background: '#d9534f', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {isBusy ? <span className="animated-dots"></span> : 'Yes, Do It'}
+              </button>
             </div>
           </div>
         </div>
@@ -309,7 +445,6 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
               {editingId ? 'Edit' : 'Add'} {modalType === 'product' ? 'Product' : 'Employee'}
             </h2>
 
-            {/* PRODUCT FORM */}
             {modalType === 'product' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <input className="input-dark" placeholder="Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} style={{ margin: 0 }} />
@@ -332,13 +467,19 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                   </select>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button onClick={handleSaveProduct} disabled={isSubmitting} className="btn-primary" style={{ flex: 1, padding: '12px', fontSize: '1.1rem' }}>{isSubmitting ? 'Saving...' : 'Save Product'}</button>
-                  <button onClick={closeModal} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#444', fontSize: '1.1rem' }}>Cancel</button>
+                  <button
+                    onClick={handleSaveProduct}
+                    disabled={isSubmitting}
+                    className="btn-primary"
+                    style={{ flex: 1, padding: '12px', fontSize: '1.1rem', display: 'flex', justifyContent: 'center' }}
+                  >
+                    {isSubmitting ? <span className="animated-dots">Saving</span> : 'Save Product'}
+                  </button>
+                  <button onClick={closeModal} disabled={isSubmitting} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#444', fontSize: '1.1rem' }}>Cancel</button>
                 </div>
               </div>
             )}
 
-            {/* EMPLOYEE FORM */}
             {modalType === 'employee' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <input className="input-dark" placeholder="Employee Name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} />
@@ -352,8 +493,15 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                   <input className="input-dark" placeholder="Confirm PIN" maxLength="4" type="password" value={newUser.confirmPin} onChange={e => setNewUser({ ...newUser, confirmPin: e.target.value })} style={{ flex: 1 }} />
                 </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button onClick={handleSaveUser} disabled={isSubmitting} className="btn-primary" style={{ flex: 1, padding: '12px' }}>{isSubmitting ? 'Saving...' : 'Save Employee'}</button>
-                  <button onClick={closeModal} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#444' }}>Cancel</button>
+                  <button
+                    onClick={handleSaveUser}
+                    disabled={isSubmitting}
+                    className="btn-primary"
+                    style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center' }}
+                  >
+                    {isSubmitting ? <span className="animated-dots">Saving</span> : 'Save Employee'}
+                  </button>
+                  <button onClick={closeModal} disabled={isSubmitting} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#444' }}>Cancel</button>
                 </div>
               </div>
             )}
@@ -437,43 +585,63 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
             </div>
           )}
 
-          <table className="data-table" style={{ marginTop: '40px' }}>
+          {/* FILTERS FOR SALES HISTORY */}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px', marginBottom: '10px', alignItems: 'center' }}>
+            <span style={{ fontWeight: 'bold', color: '#aaa' }}>Filter:</span>
+            <select className="input-dark" style={{ width: 'auto', padding: '8px' }} value={salesFilterMethod} onChange={(e) => setSalesFilterMethod(e.target.value)}>
+              <option value="all">All Methods</option>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="waste">Waste</option>
+              <option value="entry_error">Void</option>
+            </select>
+
+            <select className="input-dark" style={{ width: 'auto', padding: '8px' }} value={salesFilterEmployee} onChange={(e) => setSalesFilterEmployee(e.target.value)}>
+              <option value="all">All Employees</option>
+              {uniqueEmployees.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+
+          <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Revenue</th>
-                <th>Tip</th>
+                <th className="sortable-th" onClick={() => handleSort('date')}>Date {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                <th className="sortable-th" onClick={() => handleSort('total')}>Revenue {sortConfig.key === 'total' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
+                <th className="sortable-th" onClick={() => handleSort('tip')}>Tip {sortConfig.key === 'tip' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
                 <th>Method</th>
+                <th>Employee</th>
                 <th>Items</th>
               </tr>
             </thead>
             <tbody>
-              {sales.map((sale) => {
+              {getFilteredSales().map((sale) => {
                 let badgeColor = '#6610f2';
                 let badgeText = sale.payment_method ? sale.payment_method.toUpperCase() : 'UNKNOWN';
                 if (sale.payment_method === 'cash') badgeColor = '#218838';
                 if (sale.payment_method === 'waste') badgeColor = '#d9534f';
                 if (sale.payment_method === 'entry_error') { badgeColor = '#000000'; badgeText = 'VOID'; }
                 return (
-                  <tr key={sale.id}>
+                  <tr key={sale.id} className="clickable-row" onClick={() => setSelectedSale(sale)}>
                     <td>{new Date(sale.date).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                     <td>${parseFloat(sale.total).toFixed(2)}</td>
                     <td style={{ color: '#17a2b8' }}>${parseFloat(sale.tip || 0).toFixed(2)}</td>
                     <td><span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: badgeColor, fontWeight: 'bold' }}>{badgeText}</span></td>
+                    <td style={{ color: '#ccc' }}>{sale.employee_name || 'Unknown'}</td>
                     <td style={{ color: '#aaa', fontSize: '0.9rem' }}>{Array.isArray(sale.items) ? sale.items.map(i => i.quantity && i.quantity > 1 ? `${i.name} x${i.quantity}` : i.name).join(', ') : 'Unknown Items'}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          {sales.length === 0 && <p style={{ marginTop: '20px', color: '#888' }}>No sales yet.</p>}
+          {getFilteredSales().length === 0 && <p style={{ marginTop: '20px', color: '#888' }}>No sales found matching criteria.</p>}
         </div>
       )}
 
       {/* --- INVENTORY VIEW --- */}
       {!loading && activeTab === 'inventory' && canManageInventory && (
         <div>
-          {/* SEARCH & FILTER BAR */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
             <input
               type="text"
@@ -481,42 +649,15 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                flex: 1,
-                padding: '12px',
-                fontSize: '1rem',
-                borderRadius: '8px',
-                border: '1px solid #555',
-                background: '#2a2a2a',
-                color: 'white',
-                minWidth: '200px'
+                flex: 1, padding: '12px', fontSize: '1rem',
+                borderRadius: '8px', border: '1px solid #555', background: '#2a2a2a', color: 'white', minWidth: '200px'
               }}
             />
 
             <div style={{ display: 'flex', gap: '5px' }}>
-              <button
-                onClick={() => setInventoryFilter('all')}
-                style={{
-                  padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold',
-                  background: inventoryFilter === 'all' ? '#007bff' : '#333', color: 'white'
-                }}>
-                All
-              </button>
-              <button
-                onClick={() => setInventoryFilter('low')}
-                style={{
-                  padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold',
-                  background: inventoryFilter === 'low' ? '#ffc107' : '#333', color: inventoryFilter === 'low' ? 'black' : 'white'
-                }}>
-                ⚠️ Low Stock
-              </button>
-              <button
-                onClick={() => setInventoryFilter('sold_out')}
-                style={{
-                  padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold',
-                  background: inventoryFilter === 'sold_out' ? '#d90429' : '#333', color: 'white'
-                }}>
-                ❌ Sold Out
-              </button>
+              <button onClick={() => setInventoryFilter('all')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'all' ? '#007bff' : '#333', color: 'white' }}>All</button>
+              <button onClick={() => setInventoryFilter('low')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'low' ? '#ffc107' : '#333', color: inventoryFilter === 'low' ? 'black' : 'white' }}>⚠️ Low Stock</button>
+              <button onClick={() => setInventoryFilter('sold_out')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'sold_out' ? '#d90429' : '#333', color: 'white' }}>❌ Sold Out</button>
             </div>
           </div>
 
@@ -530,25 +671,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
 
               return (
                 <div key={item.id} className="inventory-item" style={{
-                  position: 'relative',
-                  background: '#2a2a2a',
-                  padding: '15px',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-                  overflow: 'hidden',
-                  border: '1px solid #444',
-                  opacity: isSoldOut ? 0.7 : 1,
-                  /* 👇 FLEX PROPERTIES FOR UNIFORM SIZE */
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  height: '100%',
-                  boxSizing: 'border-box'
+                  position: 'relative', background: '#2a2a2a', padding: '15px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', overflow: 'hidden', border: '1px solid #444', opacity: isSoldOut ? 0.7 : 1,
+                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%', boxSizing: 'border-box'
                 }}>
                   {isSoldOut && <div style={{ position: 'absolute', top: '12px', right: '-35px', transform: 'rotate(45deg)', background: 'linear-gradient(to bottom, #d90429 0%, #8d0801 100%)', color: '#fff', width: '120px', textAlign: 'center', padding: '4px 0', boxShadow: '0 2px 4px rgba(0,0,0,0.5)', fontWeight: 'bold', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 10 }}>Sold Out</div>}
                   {isLowStock && <div style={{ position: 'absolute', top: '12px', right: '-35px', transform: 'rotate(45deg)', background: 'linear-gradient(to bottom, #ffeb3b 0%, #fbc02d 100%)', color: '#000', width: '120px', textAlign: 'center', padding: '4px 0', boxShadow: '0 2px 4px rgba(0,0,0,0.5)', fontWeight: 'bold', fontSize: '0.8rem', zIndex: 10 }}>{item.stock_count} Left</div>}
 
-                  {/* WRAPPER FOR CONTENT TO PUSH BUTTONS DOWN */}
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px', paddingRight: '60px' }}>
                       <div>
@@ -560,7 +688,6 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                     <div style={{ marginBottom: '15px', fontSize: '0.9rem', color: '#bbb' }}>Current Stock: <span style={{ fontWeight: 'bold', marginLeft: '5px', color: isSoldOut ? '#ef5350' : (isLowStock ? '#ffca28' : '#fff') }}>{item.stock_count !== null ? item.stock_count : '∞'}</span></div>
                   </div>
 
-                  {/* BUTTONS ALWAYS AT BOTTOM */}
                   <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
                     <button onClick={() => openProductModal(item)} style={{ flex: 1, padding: '8px', background: '#2196f3', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>Edit</button>
                     <button onClick={() => handleDeleteRequest('product', item.id)} style={{ flex: 1, padding: '8px', background: '#f44336', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>Delete</button>

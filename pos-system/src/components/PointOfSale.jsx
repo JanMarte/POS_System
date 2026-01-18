@@ -6,12 +6,15 @@ import Notification from './Notification';
 import VoidModal from './VoidModal';
 import { voidItem } from '../services/tabService';
 import TopBar from './TopBar';
+import { printReceipt } from '../utils/receiptService'; // 👈 IMPORT SERVICE
 
 const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [inventory, setInventory] = useState([]);
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [isBusy, setIsBusy] = useState(false);
 
   // --- TAB STATES ---
   const [customerName, setCustomerName] = useState('');
@@ -21,6 +24,10 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
 
   // --- CHECKOUT STATES ---
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  // NEW: Track which "screen" of the checkout we are on: 'payment' | 'success'
+  const [checkoutStep, setCheckoutStep] = useState('payment');
+  // NEW: Store the last order so we can print it
+  const [completedOrder, setCompletedOrder] = useState(null);
 
   // VOID STATES
   const [isVoidModalOpen, setIsVoidModalOpen] = useState(false);
@@ -57,6 +64,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   // --- CART LOGIC ---
 
   const handleItemClick = (item) => {
+    if (isBusy) return;
     const cartItem = cart.find(c => c.id === item.id && !c.tab_id);
     const quantityInCart = cartItem ? cartItem.quantity : 0;
     const isTracked = item.stock_count !== null;
@@ -87,6 +95,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   };
 
   const handleRemoveRequest = (item) => {
+    if (isBusy) return;
     if (item.tab_id) {
       setItemToVoid(item);
       setIsVoidModalOpen(true);
@@ -107,7 +116,8 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   };
 
   const handleConfirmVoid = async (reason) => {
-    if (!itemToVoid) return;
+    if (!itemToVoid || isBusy) return;
+    setIsBusy(true);
 
     const targetRowId = itemToVoid.db_ids && itemToVoid.db_ids.length > 0
       ? itemToVoid.db_ids[itemToVoid.db_ids.length - 1]
@@ -121,7 +131,8 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         items: [historyItem],
         total: 0.00,
         tip: 0.00,
-        method: reason
+        method: reason,
+        employee: user ? user.name : 'Unknown'
       };
       await saveSale(historyLog);
 
@@ -144,6 +155,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       console.error("Void error:", error);
       notify("Failed to void item", "error");
     } finally {
+      setIsBusy(false);
       setIsVoidModalOpen(false);
       setItemToVoid(null);
     }
@@ -171,82 +183,99 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   };
 
   const loadTab = async (tab) => {
-    const { data: items } = await supabase
-      .from('tab_items')
-      .select('*')
-      .eq('tab_id', tab.id)
-      .eq('status', 'active');
+    if (isBusy) return;
+    setIsBusy(true);
+    try {
+      const { data: items } = await supabase
+        .from('tab_items')
+        .select('*')
+        .eq('tab_id', tab.id)
+        .eq('status', 'active');
 
-    const groupedCart = (items || []).reduce((acc, dbItem) => {
-      const productId = dbItem.inventory_id || dbItem.name;
+      const groupedCart = (items || []).reduce((acc, dbItem) => {
+        const existingItem = acc.find(i =>
+          i.inventory_id === dbItem.inventory_id &&
+          i.price === dbItem.price
+        );
 
-      const existingItem = acc.find(i =>
-        i.inventory_id === dbItem.inventory_id &&
-        i.price === dbItem.price
-      );
+        if (existingItem) {
+          existingItem.quantity += dbItem.quantity;
+          existingItem.db_ids.push(dbItem.id);
+        } else {
+          acc.push({
+            ...dbItem,
+            id: dbItem.inventory_id,
+            quantity: dbItem.quantity,
+            alreadyDeducted: true,
+            db_ids: [dbItem.id]
+          });
+        }
+        return acc;
+      }, []);
 
-      if (existingItem) {
-        existingItem.quantity += dbItem.quantity;
-        existingItem.db_ids.push(dbItem.id);
-      } else {
-        acc.push({
-          ...dbItem,
-          id: dbItem.inventory_id,
-          quantity: dbItem.quantity,
-          alreadyDeducted: true,
-          db_ids: [dbItem.id]
-        });
-      }
-      return acc;
-    }, []);
-
-    setCart(groupedCart);
-    setCustomerName(tab.customer_name);
-    setActiveTabId(tab.id);
-    setShowTabList(false);
-    notify(`Tab loaded: ${tab.customer_name}`);
+      setCart(groupedCart);
+      setCustomerName(tab.customer_name);
+      setActiveTabId(tab.id);
+      setShowTabList(false);
+      notify(`Tab loaded: ${tab.customer_name}`);
+    } catch (e) {
+      console.error(e);
+      notify("Failed to load tab", "error");
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   const saveToTab = async () => {
     if (cart.length === 0) return notify("Cart is empty!", "error");
-    const name = customerName || 'Walk-in';
-    let tabIdToUse = activeTabId;
+    if (isBusy) return;
+    setIsBusy(true);
 
-    if (!tabIdToUse) {
-      const { data: newTab, error } = await supabase.from('tabs').insert([{ customer_name: name, status: 'open' }]).select().single();
-      if (error) return notify('Error creating tab', "error");
-      tabIdToUse = newTab.id;
-    } else {
-      await supabase.from('tabs').update({ customer_name: name }).eq('id', tabIdToUse);
+    try {
+      const name = customerName || 'Walk-in';
+      let tabIdToUse = activeTabId;
+
+      if (!tabIdToUse) {
+        const { data: newTab, error } = await supabase.from('tabs').insert([{ customer_name: name, status: 'open' }]).select().single();
+        if (error) throw error;
+        tabIdToUse = newTab.id;
+      } else {
+        await supabase.from('tabs').update({ customer_name: name }).eq('id', tabIdToUse);
+      }
+
+      const newItems = cart.filter(item => !item.alreadyDeducted);
+
+      if (newItems.length > 0) {
+        await deductStock(newItems);
+
+        const itemsToInsert = [];
+        newItems.forEach(item => {
+          for (let i = 0; i < item.quantity; i++) {
+            itemsToInsert.push({
+              tab_id: tabIdToUse,
+              inventory_id: item.inventory_id || item.id,
+              name: item.name,
+              price: item.price,
+              quantity: 1,
+              status: 'active'
+            });
+          }
+        });
+
+        await supabase.from('tab_items').insert(itemsToInsert);
+      }
+
+      await refreshInventory();
+      notify(`Tab saved for ${name}!`);
+      setCart([]);
+      setCustomerName('');
+      setActiveTabId(null);
+    } catch (err) {
+      console.error(err);
+      notify("Error saving tab", "error");
+    } finally {
+      setIsBusy(false);
     }
-
-    const newItems = cart.filter(item => !item.alreadyDeducted);
-
-    if (newItems.length > 0) {
-      await deductStock(newItems);
-
-      const itemsToInsert = [];
-      newItems.forEach(item => {
-        for (let i = 0; i < item.quantity; i++) {
-          itemsToInsert.push({
-            tab_id: tabIdToUse,
-            inventory_id: item.inventory_id || item.id,
-            name: item.name,
-            price: item.price,
-            quantity: 1,
-            status: 'active'
-          });
-        }
-      });
-
-      await supabase.from('tab_items').insert(itemsToInsert);
-    }
-
-    await refreshInventory();
-    notify(`Tab saved for ${name}!`);
-    setCart([]);
-    setCustomerName('');
-    setActiveTabId(null);
   };
 
   const closeTab = async () => {
@@ -259,23 +288,53 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const handlePayClick = () => {
     if (cart.length === 0) return notify("Cart is empty!", "error");
     setTipAmount(0);
+    setCheckoutStep('payment'); // Reset step
     setIsCheckoutOpen(true);
     setPaymentMethod('');
     setAmountPaid('');
     setChangeDue(null);
   };
 
-  const finalizeSale = async () => {
-    const orderData = { items: cart, total: total.toFixed(2), tip: tipAmount.toFixed(2), method: paymentMethod };
-    await saveSale(orderData);
-    if (activeTabId) await closeTab();
-    await refreshInventory();
-
-    setCart([]);
-    setCustomerName('');
-    setActiveTabId(null);
+  const closeCheckout = () => {
     setIsCheckoutOpen(false);
-    notify("Sale Processed Successfully!");
+    setCheckoutStep('payment');
+    setCompletedOrder(null);
+  };
+
+  const finalizeSale = async () => {
+    if (isBusy) return;
+    setIsBusy(true);
+
+    try {
+      const orderData = {
+        items: [...cart], // Copy cart
+        total: total.toFixed(2),
+        tip: tipAmount.toFixed(2),
+        method: paymentMethod,
+        employee: user ? user.name : 'Unknown',
+        date: new Date().toISOString()
+      };
+
+      await saveSale(orderData);
+      if (activeTabId) await closeTab();
+      await refreshInventory();
+
+      // Store Order Data for Receipt
+      setCompletedOrder(orderData);
+
+      // Clear Cart Data
+      setCart([]);
+      setCustomerName('');
+      setActiveTabId(null);
+
+      // Move to Success Screen
+      setCheckoutStep('success');
+      notify("Sale Processed Successfully!");
+    } catch (e) {
+      notify("Error processing sale", "error");
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   const processCash = () => {
@@ -285,9 +344,10 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   };
 
   const processCard = () => {
-    setIsProcessing(true);
+    if (isBusy) return;
+    setIsBusy(true);
     setTimeout(() => {
-      setIsProcessing(false);
+      setIsBusy(false);
       finalizeSale();
     }, 2000);
   };
@@ -301,69 +361,34 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ message: '', type: '' })} />
 
       <style>{`
-        /* Reset Body Scroll */
-        body, html {
-            overflow: hidden;
-            height: 100%;
-            margin: 0;
-            padding: 0;
+        body, html { overflow: hidden; height: 100%; margin: 0; padding: 0; }
+        .pos-container { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: 10px; box-sizing: border-box; background-color: #1a1a1a; }
+        .pos-content-wrapper { display: flex; gap: 15px; flex: 1; overflow: hidden; }
+        .ticket-panel { width: 35%; display: flex; flex-direction: column; background: #2a2a2a; padding: 15px; border-radius: 8px; height: 100%; overflow: hidden; }
+        .menu-panel { width: 65%; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+        .menu-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; padding-bottom: 20px; align-content: start; }
+        .cart-list-container { flex: 1; overflow-y: auto; margin-bottom: 10px; }
+        
+        button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed !important;
+          filter: grayscale(0.5);
         }
 
-        .pos-container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            height: 100dvh;
-            padding: 10px;
-            box-sizing: border-box;
-            background-color: #1a1a1a;
+        @keyframes dots {
+          0%, 20% { content: "."; }
+          40% { content: ".."; }
+          60%, 100% { content: "..."; }
         }
-
-        /* Wrapper for the 2 columns */
-        .pos-content-wrapper {
-            display: flex;
-            gap: 15px;
-            flex: 1; /* Take remaining height */
-            overflow: hidden; /* Prevent body scroll */
-        }
-
-        .ticket-panel {
-            width: 35%;
-            display: flex;
-            flex-direction: column;
-            background: #2a2a2a;
-            padding: 15px;
-            border-radius: 8px;
-            height: 100%;
-            overflow: hidden;
-        }
-
-        .menu-panel {
-            width: 65%;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            overflow: hidden;
-        }
-
-        .menu-grid {
-            flex: 1;
-            overflow-y: auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 15px;
-            padding-bottom: 20px;
-            align-content: start;
-        }
-
-        .cart-list-container {
-            flex: 1;
-            overflow-y: auto;
-            margin-bottom: 10px;
+        .animated-dots::after {
+          content: ".";
+          animation: dots 1.5s steps(1, end) infinite;
+          display: inline-block;
+          width: 0px; 
+          text-align: left;
         }
       `}</style>
 
-      {/* 👇 PASS USER AND UPDATE BUTTON TEXT */}
       <TopBar
         title="Point of Sale"
         onLogout={onLogout}
@@ -373,6 +398,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
             <button
               className="btn-primary"
               onClick={onNavigateToDashboard}
+              disabled={isBusy}
               style={{
                 marginRight: '15px',
                 padding: '8px 15px',
@@ -396,8 +422,20 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{activeTabId ? `Tab #${activeTabId}` : 'New Order'}</h2>
             <div style={{ display: 'flex', gap: '5px' }}>
-              <button onClick={() => { setCart([]); setCustomerName(''); setActiveTabId(null); }} style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>New Order ↺</button>
-              <button onClick={handleOpenTabList} style={{ background: '#6c757d', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Tabs 📂</button>
+              <button
+                disabled={isBusy}
+                onClick={() => { setCart([]); setCustomerName(''); setActiveTabId(null); }}
+                style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                New Order ↺
+              </button>
+              <button
+                disabled={isBusy}
+                onClick={handleOpenTabList}
+                style={{ background: '#6c757d', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Tabs 📂
+              </button>
             </div>
           </div>
 
@@ -407,6 +445,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
                 key={`${item.id}-${item.tab_id ? 'saved' : 'new'}-${index}`}
                 className="cart-item"
                 onClick={() => handleRemoveRequest(item)}
+                style={{ pointerEvents: isBusy ? 'none' : 'auto' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                   <span>
@@ -432,8 +471,20 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
             <input type="text" placeholder="Customer Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '5px', border: '1px solid #555', background: '#333', color: 'white', boxSizing: 'border-box' }} />
 
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={saveToTab} style={{ flex: 1, padding: '12px', fontSize: '1.1rem', fontWeight: 'bold', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>SAVE TAB</button>
-              <button onClick={handlePayClick} style={{ flex: 1, padding: '12px', fontSize: '1.1rem', fontWeight: 'bold', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>PAY NOW</button>
+              <button
+                disabled={isBusy}
+                onClick={saveToTab}
+                style={{ flex: 1, padding: '12px', fontSize: '1.1rem', fontWeight: 'bold', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}
+              >
+                {isBusy ? <span className="animated-dots">SAVING</span> : 'SAVE TAB'}
+              </button>
+              <button
+                disabled={isBusy}
+                onClick={handlePayClick}
+                style={{ flex: 1, padding: '12px', fontSize: '1.1rem', fontWeight: 'bold', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                PAY NOW
+              </button>
             </div>
           </div>
         </div>
@@ -464,10 +515,11 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
                   className="product-card"
                   onClick={() => handleItemClick(item)}
                   style={{
-                    cursor: isSoldOut ? 'not-allowed' : 'pointer',
+                    cursor: (isSoldOut || isBusy) ? 'not-allowed' : 'pointer',
                     position: 'relative',
                     border: isSoldOut ? '1px solid #444' : '1px solid #555',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    opacity: isBusy ? 0.6 : 1
                   }}
                 >
 
@@ -518,7 +570,16 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
             <h2>Open Tabs</h2>
             <div style={{ maxHeight: '400px', overflowY: 'auto', margin: '20px 0' }}>
               {openTabs.length === 0 ? <p>No open tabs.</p> : openTabs.map(tab => (
-                <div key={tab.id} onClick={() => loadTab(tab)} style={{ padding: '15px', borderBottom: '1px solid #444', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+                <div
+                  key={tab.id}
+                  onClick={() => !isBusy && loadTab(tab)}
+                  style={{
+                    padding: '15px', borderBottom: '1px solid #444',
+                    cursor: isBusy ? 'not-allowed' : 'pointer',
+                    display: 'flex', justifyContent: 'space-between',
+                    opacity: isBusy ? 0.5 : 1
+                  }}
+                >
                   <span style={{ fontWeight: 'bold' }}>{tab.customer_name}</span><span style={{ color: '#888' }}>#{tab.id}</span>
                 </div>
               ))}
@@ -530,61 +591,104 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
 
       <VoidModal
         isOpen={isVoidModalOpen}
-        onClose={() => setIsVoidModalOpen(false)}
+        onClose={() => !isBusy && setIsVoidModalOpen(false)}
         onConfirm={handleConfirmVoid}
       />
 
       {isCheckoutOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ width: '500px' }}>
-            <div style={{ marginBottom: '20px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
-              <div style={{ fontSize: '1.2rem', color: '#aaa' }}>Bill: ${total.toFixed(2)}</div>
-              {tipAmount > 0 && <div style={{ fontSize: '1.2rem', color: '#28a745' }}>+ Tip: ${tipAmount.toFixed(2)}</div>}
-              <h1 style={{ fontSize: '3rem', margin: '10px 0' }}>${grandTotal.toFixed(2)}</h1>
-            </div>
-            {!paymentMethod && (
-              <div style={{ marginBottom: '30px' }}>
-                <h3 style={{ color: '#aaa', marginBottom: '10px' }}>Add Tip?</h3>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                  {[0.15, 0.20, 0.25].map(pct => (
-                    <button key={pct} onClick={() => setTipAmount(total * pct)} style={{ flex: 1, padding: '15px', borderRadius: '8px', border: '1px solid #555', background: tipAmount === total * pct ? '#28a745' : '#333', color: 'white', fontSize: '1.1rem', cursor: 'pointer' }}>{pct * 100}% <br /><span style={{ fontSize: '0.9rem' }}>${(total * pct).toFixed(2)}</span></button>
-                  ))}
+          <div className="modal-content" style={{ width: '500px', textAlign: 'center' }}>
+
+            {/* 👇 STEP 1: PAYMENT SCREEN */}
+            {checkoutStep === 'payment' && (
+              <>
+                <div style={{ marginBottom: '20px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
+                  <div style={{ fontSize: '1.2rem', color: '#aaa' }}>Bill: ${total.toFixed(2)}</div>
+                  {tipAmount > 0 && <div style={{ fontSize: '1.2rem', color: '#28a745' }}>+ Tip: ${tipAmount.toFixed(2)}</div>}
+                  <h1 style={{ fontSize: '3rem', margin: '10px 0' }}>${grandTotal.toFixed(2)}</h1>
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => setTipAmount(0)} style={{ flex: 1, padding: '10px', background: '#444', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>No Tip</button>
-                  <input type="number" placeholder="Custom $" onChange={(e) => setTipAmount(parseFloat(e.target.value) || 0)} style={{ flex: 1, padding: '10px', background: '#222', border: '1px solid #555', color: 'white', borderRadius: '5px', textAlign: 'center' }} />
+                {!paymentMethod && (
+                  <div style={{ marginBottom: '30px' }}>
+                    <h3 style={{ color: '#aaa', marginBottom: '10px' }}>Add Tip?</h3>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                      {[0.15, 0.20, 0.25].map(pct => (
+                        <button key={pct} onClick={() => setTipAmount(total * pct)} style={{ flex: 1, padding: '15px', borderRadius: '8px', border: '1px solid #555', background: tipAmount === total * pct ? '#28a745' : '#333', color: 'white', fontSize: '1.1rem', cursor: 'pointer' }}>{pct * 100}% <br /><span style={{ fontSize: '0.9rem' }}>${(total * pct).toFixed(2)}</span></button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={() => setTipAmount(0)} style={{ flex: 1, padding: '10px', background: '#444', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>No Tip</button>
+                      <input type="number" placeholder="Custom $" onChange={(e) => setTipAmount(parseFloat(e.target.value) || 0)} style={{ flex: 1, padding: '10px', background: '#222', border: '1px solid #555', color: 'white', borderRadius: '5px', textAlign: 'center' }} />
+                    </div>
+                  </div>
+                )}
+                {!paymentMethod && (
+                  <div>
+                    <h3 style={{ color: '#aaa', marginBottom: '10px' }}>Payment Method</h3>
+                    <div style={{ display: 'flex', gap: '20px' }}>
+                      <button disabled={isBusy} className="pay-btn-large" style={{ background: '#007bff' }} onClick={() => setPaymentMethod('cash')}>CASH</button>
+                      <button disabled={isBusy} className="pay-btn-large" style={{ background: '#6610f2' }} onClick={() => setPaymentMethod('card')}>CARD</button>
+                    </div>
+                  </div>
+                )}
+                {paymentMethod === 'cash' && !changeDue && (
+                  <div>
+                    <h3>Amount Received</h3>
+                    <input type="number" className="input-field" autoFocus value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                    <button disabled={isBusy} className="pay-btn-large" onClick={processCash}>CALCULATE CHANGE</button>
+                  </div>
+                )}
+                {changeDue !== null && (
+                  <div>
+                    <h3 style={{ color: 'lime', fontSize: '2rem' }}>Change: ${changeDue.toFixed(2)}</h3>
+                    <button disabled={isBusy} className="pay-btn-large" style={{ display: 'flex', justifyContent: 'center' }} onClick={finalizeSale}>
+                      {isBusy ? <span className="animated-dots">PROCESSING</span> : 'FINISH SALE'}
+                    </button>
+                  </div>
+                )}
+                {paymentMethod === 'card' && (
+                  <div>
+                    <h3>{isBusy ? <span className="animated-dots">Processing Payment</span> : `Charge $${grandTotal.toFixed(2)}`}</h3>
+                    <button disabled={isBusy} className="pay-btn-large" style={{ display: 'flex', justifyContent: 'center' }} onClick={processCard}>
+                      {isBusy ? <span className="animated-dots"></span> : 'Simulate Swipe'}
+                    </button>
+                  </div>
+                )}
+                <button disabled={isBusy} onClick={closeCheckout} style={{ marginTop: '20px', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', textDecoration: 'underline' }}>Cancel Transaction</button>
+              </>
+            )}
+
+            {/* 👇 STEP 2: SUCCESS SCREEN WITH PRINT BUTTON */}
+            {checkoutStep === 'success' && (
+              <div style={{ padding: '20px' }}>
+                <div style={{ fontSize: '4rem', marginBottom: '20px' }}>✅</div>
+                <h2 style={{ color: '#28a745', fontSize: '2rem', marginTop: 0 }}>Payment Successful!</h2>
+                <p style={{ color: '#ccc', fontSize: '1.2rem' }}>Order has been completed.</p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '30px' }}>
+                  <button
+                    onClick={() => printReceipt(completedOrder)}
+                    style={{
+                      padding: '15px', fontSize: '1.2rem', fontWeight: 'bold',
+                      background: '#fff', color: '#000', border: 'none', borderRadius: '5px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                    }}
+                  >
+                    <span>🖨️</span> Print Receipt
+                  </button>
+
+                  <button
+                    onClick={closeCheckout}
+                    style={{
+                      padding: '15px', fontSize: '1.2rem', fontWeight: 'bold',
+                      background: '#007bff', color: '#white', border: 'none', borderRadius: '5px', cursor: 'pointer'
+                    }}
+                  >
+                    Start New Order
+                  </button>
                 </div>
               </div>
             )}
-            {!paymentMethod && (
-              <div>
-                <h3 style={{ color: '#aaa', marginBottom: '10px' }}>Payment Method</h3>
-                <div style={{ display: 'flex', gap: '20px' }}>
-                  <button className="pay-btn-large" style={{ background: '#007bff' }} onClick={() => setPaymentMethod('cash')}>CASH</button>
-                  <button className="pay-btn-large" style={{ background: '#6610f2' }} onClick={() => setPaymentMethod('card')}>CARD</button>
-                </div>
-              </div>
-            )}
-            {paymentMethod === 'cash' && !changeDue && (
-              <div>
-                <h3>Amount Received</h3>
-                <input type="number" className="input-field" autoFocus value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
-                <button className="pay-btn-large" onClick={processCash}>CALCULATE CHANGE</button>
-              </div>
-            )}
-            {changeDue !== null && (
-              <div>
-                <h3 style={{ color: 'lime', fontSize: '2rem' }}>Change: ${changeDue.toFixed(2)}</h3>
-                <button className="pay-btn-large" onClick={finalizeSale}>FINISH SALE</button>
-              </div>
-            )}
-            {paymentMethod === 'card' && (
-              <div>
-                <h3>{isProcessing ? "Processing..." : `Charge $${grandTotal.toFixed(2)}`}</h3>
-                {!isProcessing && <button className="pay-btn-large" onClick={processCard}>Simulate Swipe</button>}
-              </div>
-            )}
-            <button onClick={() => setIsCheckoutOpen(false)} style={{ marginTop: '20px', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', textDecoration: 'underline' }}>Cancel Transaction</button>
+
           </div>
         </div>
       )}
