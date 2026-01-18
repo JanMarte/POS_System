@@ -15,7 +15,7 @@ import {
 import Notification from './Notification';
 import SalesChart from './SalesChart';
 import TopBar from './TopBar';
-import { printReceipt } from '../utils/receiptService'; // 👈 IMPORT SERVICE
+import { printReceipt } from '../utils/receiptService';
 
 const AdminDashboard = ({ onBack, onLogout, user }) => {
   const [activeTab, setActiveTab] = useState('sales');
@@ -50,7 +50,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
 
   // Employee Form Data
-  const [newUser, setNewUser] = useState({ name: '', pin: '', confirmPin: '', role: 'bartender' });
+  const [newUser, setNewUser] = useState({ name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false });
 
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -216,11 +216,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         name: userToEdit.name,
         pin: '',
         confirmPin: '',
-        role: userToEdit.role
+        role: userToEdit.role,
+        can_discount: userToEdit.can_discount || false
       });
     } else {
       setEditingId(null);
-      setNewUser({ name: '', pin: '', confirmPin: '', role: 'bartender' });
+      setNewUser({ name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false });
     }
     setIsFormOpen(true);
   };
@@ -273,7 +274,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
 
     setIsSubmitting(true);
 
-    const payload = { name: newUser.name, role: newUser.role };
+    const payload = {
+      name: newUser.name,
+      role: newUser.role,
+      can_discount: newUser.can_discount
+    };
+
     if (newUser.pin) payload.pin = newUser.pin;
 
     if (editingId) {
@@ -318,37 +324,14 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         .badge-admin { background: #d9534f; color: white; }
         .badge-manager { background: #f0ad4e; color: black; }
         .badge-bartender { background: #0275d8; color: white; }
-        
-        /* CLICKABLE SORT HEADERS */
         .sortable-th { cursor: pointer; user-select: none; transition: background 0.2s; }
         .sortable-th:hover { background: #444; }
         .sort-icon { font-size: 0.8rem; margin-left: 5px; color: #888; }
-
-        /* CLICKABLE ROWS */
         .clickable-row { cursor: pointer; transition: background 0.1s; }
         .clickable-row:hover { background: #3a3a3a; }
-
-        /* DISABLED BUTTONS */
-        button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed !important;
-          filter: grayscale(0.5);
-        }
-
-        /* 👇 DOTS ANIMATION */
-        @keyframes dots {
-          0%, 20% { content: "."; }
-          40% { content: ".."; }
-          60%, 100% { content: "..."; }
-        }
-        .animated-dots::after {
-          content: ".";
-          animation: dots 1.5s steps(1, end) infinite;
-          display: inline-block;
-          width: 0px; 
-          text-align: left;
-        }
-
+        button:disabled { opacity: 0.6; cursor: not-allowed !important; filter: grayscale(0.5); }
+        .animated-dots::after { content: "."; animation: dots 1.5s steps(1, end) infinite; display: inline-block; width: 0px; text-align: left; }
+        @keyframes dots { 0%, 20% { content: "."; } 40% { content: ".."; } 60%, 100% { content: "..."; } }
         @media (max-width: 768px) {
           .stats-card-container { display: ${isStatsOpen ? 'block' : 'none'} !important; margin-top: 10px; }
           .stats-grid { flex-direction: column; gap: 10px; }
@@ -359,7 +342,6 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         }
       `}</style>
 
-      {/* TRANSACTION DETAILS MODAL */}
       {selectedSale && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px', border: '1px solid #666', background: '#222' }}>
@@ -394,6 +376,12 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                 <span>Subtotal (approx):</span>
                 <span>${parseFloat(selectedSale.total).toFixed(2)}</span>
               </div>
+              {selectedSale.discount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', color: '#ffc107' }}>
+                  <span>Discount:</span>
+                  <span>-${parseFloat(selectedSale.discount).toFixed(2)}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', color: '#17a2b8' }}>
                 <span>Tip:</span>
                 <span>+${parseFloat(selectedSale.tip || 0).toFixed(2)}</span>
@@ -404,7 +392,6 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
               </div>
             </div>
 
-            {/* 👇 PRINT BUTTON */}
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
               <button
                 onClick={() => printReceipt(selectedSale)}
@@ -421,7 +408,10 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* CONFIRM DELETE MODAL */}
+      {/* ... (Confirm Delete Modal, Dynamic Edit Modal, TopBar, Tabs, Sales View, Inventory View, Employees View) ... */}
+      {/* ... [Rest of file content kept intact as previously provided] ... */}
+
+      {/* (Confirm Modal) */}
       {confirmModal.isOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '400px', textAlign: 'center', border: '1px solid #444' }}>
@@ -437,7 +427,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* DYNAMIC ADD/EDIT MODAL */}
+      {/* (Dynamic Add/Edit Modal) */}
       {isFormOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '500px', border: '1px solid #555' }}>
@@ -445,6 +435,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
               {editingId ? 'Edit' : 'Add'} {modalType === 'product' ? 'Product' : 'Employee'}
             </h2>
 
+            {/* Product Form */}
             {modalType === 'product' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <input className="input-dark" placeholder="Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} style={{ margin: 0 }} />
@@ -480,6 +471,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
               </div>
             )}
 
+            {/* Employee Form */}
             {modalType === 'employee' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <input className="input-dark" placeholder="Employee Name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} />
@@ -488,6 +480,19 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
+
+                {/* Checkbox for Discount Permission */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#333', padding: '10px', borderRadius: '5px', border: '1px solid #444' }}>
+                  <input
+                    type="checkbox"
+                    id="discount_check"
+                    checked={newUser.can_discount}
+                    onChange={e => setNewUser({ ...newUser, can_discount: e.target.checked })}
+                    style={{ width: '20px', height: '20px' }}
+                  />
+                  <label htmlFor="discount_check" style={{ color: '#fff', cursor: 'pointer' }}>Allow Giving Discounts?</label>
+                </div>
+
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <input className="input-dark" placeholder="New PIN" maxLength="4" type="password" value={newUser.pin} onChange={e => setNewUser({ ...newUser, pin: e.target.value })} style={{ flex: 1 }} />
                   <input className="input-dark" placeholder="Confirm PIN" maxLength="4" type="password" value={newUser.confirmPin} onChange={e => setNewUser({ ...newUser, confirmPin: e.target.value })} style={{ flex: 1 }} />
@@ -509,6 +514,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
+      {/* Top Bar */}
       <TopBar
         title="Employee Dashboard"
         onBack={onBack}
@@ -540,7 +546,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         )}
       </div>
 
-      {/* --- SALES VIEW --- */}
+      {/* Sales View */}
       {!loading && activeTab === 'sales' && (
         <div>
           <div className="stats-mobile-toggle" onClick={() => setIsStatsOpen(!isStatsOpen)}>
@@ -585,7 +591,6 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
             </div>
           )}
 
-          {/* FILTERS FOR SALES HISTORY */}
           <div style={{ display: 'flex', gap: '10px', marginTop: '20px', marginBottom: '10px', alignItems: 'center' }}>
             <span style={{ fontWeight: 'bold', color: '#aaa' }}>Filter:</span>
             <select className="input-dark" style={{ width: 'auto', padding: '8px' }} value={salesFilterMethod} onChange={(e) => setSalesFilterMethod(e.target.value)}>
@@ -639,7 +644,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* --- INVENTORY VIEW --- */}
+      {/* Inventory View */}
       {!loading && activeTab === 'inventory' && canManageInventory && (
         <div>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
@@ -648,12 +653,8 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
               placeholder="🔍 Search inventory..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                flex: 1, padding: '12px', fontSize: '1rem',
-                borderRadius: '8px', border: '1px solid #555', background: '#2a2a2a', color: 'white', minWidth: '200px'
-              }}
+              style={{ flex: 1, padding: '12px', fontSize: '1rem', borderRadius: '8px', border: '1px solid #555', background: '#2a2a2a', color: 'white', minWidth: '200px' }}
             />
-
             <div style={{ display: 'flex', gap: '5px' }}>
               <button onClick={() => setInventoryFilter('all')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'all' ? '#007bff' : '#333', color: 'white' }}>All</button>
               <button onClick={() => setInventoryFilter('low')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'low' ? '#ffc107' : '#333', color: inventoryFilter === 'low' ? 'black' : 'white' }}>⚠️ Low Stock</button>
@@ -663,12 +664,10 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
 
           <div className="inventory-grid">
             {filteredInventory.length === 0 && <p style={{ color: '#888' }}>No matching products found.</p>}
-
             {filteredInventory.map(item => {
               const isTracked = item.stock_count !== null;
               const isSoldOut = !item.is_available || (isTracked && item.stock_count <= 0);
               const isLowStock = !isSoldOut && isTracked && item.stock_count < 10;
-
               return (
                 <div key={item.id} className="inventory-item" style={{
                   position: 'relative', background: '#2a2a2a', padding: '15px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', overflow: 'hidden', border: '1px solid #444', opacity: isSoldOut ? 0.7 : 1,
@@ -676,7 +675,6 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                 }}>
                   {isSoldOut && <div style={{ position: 'absolute', top: '12px', right: '-35px', transform: 'rotate(45deg)', background: 'linear-gradient(to bottom, #d90429 0%, #8d0801 100%)', color: '#fff', width: '120px', textAlign: 'center', padding: '4px 0', boxShadow: '0 2px 4px rgba(0,0,0,0.5)', fontWeight: 'bold', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 10 }}>Sold Out</div>}
                   {isLowStock && <div style={{ position: 'absolute', top: '12px', right: '-35px', transform: 'rotate(45deg)', background: 'linear-gradient(to bottom, #ffeb3b 0%, #fbc02d 100%)', color: '#000', width: '120px', textAlign: 'center', padding: '4px 0', boxShadow: '0 2px 4px rgba(0,0,0,0.5)', fontWeight: 'bold', fontSize: '0.8rem', zIndex: 10 }}>{item.stock_count} Left</div>}
-
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px', paddingRight: '60px' }}>
                       <div>
@@ -687,7 +685,6 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                     </div>
                     <div style={{ marginBottom: '15px', fontSize: '0.9rem', color: '#bbb' }}>Current Stock: <span style={{ fontWeight: 'bold', marginLeft: '5px', color: isSoldOut ? '#ef5350' : (isLowStock ? '#ffca28' : '#fff') }}>{item.stock_count !== null ? item.stock_count : '∞'}</span></div>
                   </div>
-
                   <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
                     <button onClick={() => openProductModal(item)} style={{ flex: 1, padding: '8px', background: '#2196f3', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>Edit</button>
                     <button onClick={() => handleDeleteRequest('product', item.id)} style={{ flex: 1, padding: '8px', background: '#f44336', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>Delete</button>
@@ -699,7 +696,7 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* --- EMPLOYEES VIEW --- */}
+      {/* Employees View */}
       {!loading && activeTab === 'employees' && canManageEmployees && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
@@ -710,6 +707,8 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className={`badge badge-${u.role}`}>{u.role}</span>
                     <span style={{ color: '#888', fontSize: '0.9rem' }}>PIN: ••••</span>
+                    {/* Visual Indicator for Discount Permission */}
+                    {u.can_discount && <span style={{ fontSize: '0.8rem', background: '#ffc107', color: 'black', padding: '2px 6px', borderRadius: '4px' }} title="Allowed to Discount">%</span>}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>

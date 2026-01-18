@@ -1,7 +1,6 @@
 // src/data/repository.js
 import { supabase } from '../supabaseClient';
 
-// 👇 SECURITY: SHA-256 Hashing Helper
 export const hashPin = async (pin) => {
   if (!pin) return null;
   const encoder = new TextEncoder();
@@ -41,7 +40,6 @@ export const updateInventoryItem = async (id, updates) => {
   return data;
 };
 
-// Deducts stock immediately (used for Tabs)
 export const deductStock = async (items) => {
   for (const item of items) {
     if (!item.id || !item.quantity) continue;
@@ -74,9 +72,11 @@ export const saveSale = async (order) => {
     .insert([{
       total: order.total,
       tip: order.tip || 0.00,
+      discount: order.discount || 0.00, // Make sure discount is saved
       items: order.items,
       payment_method: order.method,
-      employee_name: order.employee || 'Unknown', // 👈 NEW FIELD
+      // 👇 UPDATED: Check for employee_name OR employee
+      employee_name: order.employee_name || order.employee || 'Unknown',
       date: new Date().toISOString()
     }]);
 

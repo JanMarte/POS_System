@@ -6,7 +6,7 @@ import Notification from './Notification';
 import VoidModal from './VoidModal';
 import { voidItem } from '../services/tabService';
 import TopBar from './TopBar';
-import { printReceipt } from '../utils/receiptService'; // 👈 IMPORT SERVICE
+import { printReceipt } from '../utils/receiptService';
 
 const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [inventory, setInventory] = useState([]);
@@ -16,6 +16,10 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
 
   const [isBusy, setIsBusy] = useState(false);
 
+  // --- DISCOUNT STATE ---
+  const [discount, setDiscount] = useState({ type: null, value: 0 }); // type: 'percent' | 'amount' | null
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+
   // --- TAB STATES ---
   const [customerName, setCustomerName] = useState('');
   const [activeTabId, setActiveTabId] = useState(null);
@@ -24,9 +28,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
 
   // --- CHECKOUT STATES ---
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  // NEW: Track which "screen" of the checkout we are on: 'payment' | 'success'
-  const [checkoutStep, setCheckoutStep] = useState('payment');
-  // NEW: Store the last order so we can print it
+  const [checkoutStep, setCheckoutStep] = useState('payment'); // 'payment' | 'success'
   const [completedOrder, setCompletedOrder] = useState(null);
 
   // VOID STATES
@@ -41,6 +43,9 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
 
   const [notification, setNotification] = useState({ message: '', type: '' });
   const notify = (message, type = 'success') => setNotification({ message, type });
+
+  // 👇 PERMISSION CHECK: Admin, Manager, OR 'can_discount' flag
+  const canApplyDiscount = user && (user.role === 'admin' || user.role === 'manager' || user.can_discount === true);
 
   const getCategoryIcon = (category) => {
     switch (category) {
@@ -132,7 +137,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         total: 0.00,
         tip: 0.00,
         method: reason,
-        employee: user ? user.name : 'Unknown'
+        employee_name: user ? user.name : 'Unknown' // Pass name to DB
       };
       await saveSale(historyLog);
 
@@ -161,14 +166,29 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
     }
   };
 
-  // MATH
+  // --- MATH & DISCOUNT LOGIC ---
   const calculateTotals = () => {
-    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const tax = subtotal * 0.07;
-    const total = subtotal + tax;
-    return { subtotal, tax, total };
+    const rawSubtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+    // Calculate Discount
+    let discountAmount = 0;
+    if (discount.type === 'percent') {
+      discountAmount = rawSubtotal * (discount.value / 100);
+    } else if (discount.type === 'amount') {
+      discountAmount = discount.value;
+    }
+
+    // Ensure we don't discount below zero
+    if (discountAmount > rawSubtotal) discountAmount = rawSubtotal;
+
+    const taxableSubtotal = rawSubtotal - discountAmount;
+    const tax = taxableSubtotal * 0.07;
+    const total = taxableSubtotal + tax;
+
+    return { rawSubtotal, discountAmount, tax, total };
   };
-  const { subtotal, tax, total } = calculateTotals();
+
+  const { rawSubtotal, discountAmount, tax, total } = calculateTotals();
   const grandTotal = total + tipAmount;
 
   // --- TAB LOGIC ---
@@ -216,6 +236,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       setCart(groupedCart);
       setCustomerName(tab.customer_name);
       setActiveTabId(tab.id);
+      setDiscount({ type: null, value: 0 }); // Reset discount when loading a new tab
       setShowTabList(false);
       notify(`Tab loaded: ${tab.customer_name}`);
     } catch (e) {
@@ -270,6 +291,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       setCart([]);
       setCustomerName('');
       setActiveTabId(null);
+      setDiscount({ type: null, value: 0 }); // Reset discount
     } catch (err) {
       console.error(err);
       notify("Error saving tab", "error");
@@ -288,17 +310,19 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const handlePayClick = () => {
     if (cart.length === 0) return notify("Cart is empty!", "error");
     setTipAmount(0);
-    setCheckoutStep('payment'); // Reset step
+    setCheckoutStep('payment');
     setIsCheckoutOpen(true);
     setPaymentMethod('');
     setAmountPaid('');
     setChangeDue(null);
   };
 
+  // 👇 RESET DISCOUNT ON CANCEL
   const closeCheckout = () => {
     setIsCheckoutOpen(false);
     setCheckoutStep('payment');
     setCompletedOrder(null);
+    setDiscount({ type: null, value: 0 }); // 👈 Clears discount when cancelled
   };
 
   const finalizeSale = async () => {
@@ -307,11 +331,12 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
 
     try {
       const orderData = {
-        items: [...cart], // Copy cart
+        items: [...cart],
         total: total.toFixed(2),
         tip: tipAmount.toFixed(2),
+        discount: discountAmount.toFixed(2), // 👈 Save Discount Value
         method: paymentMethod,
-        employee: user ? user.name : 'Unknown',
+        employee_name: user ? user.name : 'Unknown', // 👈 Pass Name
         date: new Date().toISOString()
       };
 
@@ -319,15 +344,12 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       if (activeTabId) await closeTab();
       await refreshInventory();
 
-      // Store Order Data for Receipt
       setCompletedOrder(orderData);
-
-      // Clear Cart Data
       setCart([]);
       setCustomerName('');
       setActiveTabId(null);
+      setDiscount({ type: null, value: 0 }); // Reset discount
 
-      // Move to Success Screen
       setCheckoutStep('success');
       notify("Sale Processed Successfully!");
     } catch (e) {
@@ -424,7 +446,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
             <div style={{ display: 'flex', gap: '5px' }}>
               <button
                 disabled={isBusy}
-                onClick={() => { setCart([]); setCustomerName(''); setActiveTabId(null); }}
+                onClick={() => { setCart([]); setCustomerName(''); setActiveTabId(null); setDiscount({ type: null, value: 0 }); }}
                 style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
               >
                 New Order ↺
@@ -461,14 +483,42 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
           </div>
 
           <div style={{ borderTop: '1px solid #444', paddingTop: '10px', marginTop: '5px' }}>
+            {/* SUBTOTAL & DISCOUNT ROW */}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ccc', fontSize: '0.9rem', marginBottom: '5px' }}>
-              <span>Subtotal: ${subtotal.toFixed(2)}</span>
-              <span>Tax (7%): ${tax.toFixed(2)}</span>
+              <span>Subtotal:</span>
+              <span>${rawSubtotal.toFixed(2)}</span>
             </div>
 
-            <h1 style={{ fontSize: '2rem', margin: '0 0 10px 0', textAlign: 'right' }}>${total.toFixed(2)}</h1>
+            {discountAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffc107', fontSize: '0.9rem', marginBottom: '5px' }}>
+                <span>Discount {discount.type === 'percent' ? `(${discount.value}%)` : ''}:</span>
+                <span>-${discountAmount.toFixed(2)}</span>
+              </div>
+            )}
 
-            <input type="text" placeholder="Customer Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '5px', border: '1px solid #555', background: '#333', color: 'white', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ccc', fontSize: '0.9rem', marginBottom: '5px' }}>
+              <span>Tax (7%):</span>
+              <span>${tax.toFixed(2)}</span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h1 style={{ fontSize: '2rem', margin: '0', textAlign: 'right' }}>${total.toFixed(2)}</h1>
+
+              {/* 👇 Only show Discount Button if authorized */}
+              {canApplyDiscount && (
+                <button
+                  onClick={() => setIsDiscountModalOpen(true)}
+                  style={{
+                    background: 'transparent', border: '1px solid #ffc107', color: '#ffc107',
+                    borderRadius: '20px', padding: '5px 10px', cursor: 'pointer', fontSize: '0.8rem'
+                  }}
+                >
+                  🏷️ Discount
+                </button>
+              )}
+            </div>
+
+            <input type="text" placeholder="Customer Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', marginTop: '10px', borderRadius: '5px', border: '1px solid #555', background: '#333', color: 'white', boxSizing: 'border-box' }} />
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -589,6 +639,38 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         </div>
       )}
 
+      {/* 👇 DISCOUNT MODAL */}
+      {isDiscountModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px', textAlign: 'center' }}>
+            <h2>Apply Discount</h2>
+            <p style={{ color: '#aaa', fontSize: '0.9rem' }}>Current Subtotal: ${rawSubtotal.toFixed(2)}</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', margin: '20px 0' }}>
+              <button onClick={() => { setDiscount({ type: 'percent', value: 10 }); setIsDiscountModalOpen(false); }} style={{ padding: '15px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem' }}>10% Off</button>
+              <button onClick={() => { setDiscount({ type: 'percent', value: 25 }); setIsDiscountModalOpen(false); }} style={{ padding: '15px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem' }}>25% Off</button>
+              <button onClick={() => { setDiscount({ type: 'percent', value: 50 }); setIsDiscountModalOpen(false); }} style={{ padding: '15px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem' }}>50% Off</button>
+              <button onClick={() => { setDiscount({ type: 'percent', value: 100 }); setIsDiscountModalOpen(false); }} style={{ padding: '15px', background: '#d9534f', border: 'none', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 'bold' }}>COMP (100%)</button>
+            </div>
+
+            <div style={{ borderTop: '1px solid #444', paddingTop: '15px', marginTop: '10px' }}>
+              <p style={{ margin: '0 0 10px 0' }}>Custom Amount ($)</p>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  style={{ flex: 1, padding: '10px', background: '#222', border: '1px solid #555', color: 'white', borderRadius: '5px' }}
+                  onChange={(e) => setDiscount({ type: 'amount', value: parseFloat(e.target.value) || 0 })}
+                />
+                <button onClick={() => setIsDiscountModalOpen(false)} style={{ padding: '10px 20px', background: '#28a745', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>Apply</button>
+              </div>
+            </div>
+
+            <button onClick={() => { setDiscount({ type: null, value: 0 }); setIsDiscountModalOpen(false); }} style={{ marginTop: '20px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid #666', color: '#ccc', borderRadius: '5px', cursor: 'pointer' }}>Remove Discount</button>
+          </div>
+        </div>
+      )}
+
       <VoidModal
         isOpen={isVoidModalOpen}
         onClose={() => !isBusy && setIsVoidModalOpen(false)}
@@ -599,7 +681,6 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '500px', textAlign: 'center' }}>
 
-            {/* 👇 STEP 1: PAYMENT SCREEN */}
             {checkoutStep === 'payment' && (
               <>
                 <div style={{ marginBottom: '20px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
@@ -657,7 +738,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
               </>
             )}
 
-            {/* 👇 STEP 2: SUCCESS SCREEN WITH PRINT BUTTON */}
+            {/* CHECKOUT STEP 2: SUCCESS SCREEN */}
             {checkoutStep === 'success' && (
               <div style={{ padding: '20px' }}>
                 <div style={{ fontSize: '4rem', marginBottom: '20px' }}>✅</div>

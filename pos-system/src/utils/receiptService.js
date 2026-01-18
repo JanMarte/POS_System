@@ -3,12 +3,11 @@
 export const printReceipt = (transaction) => {
     if (!transaction) return;
 
-    // Calculate values if they aren't explicitly provided (for backward compatibility)
+    // Calculate values if they aren't explicitly provided
     const items = transaction.items || [];
     const total = parseFloat(transaction.total || 0);
     const tip = parseFloat(transaction.tip || 0);
-    const subtotal = total - (total * 0.07); // Approximation if tax isn't stored separately
-    const tax = total * 0.07;
+    const discount = parseFloat(transaction.discount || 0);
 
     // Format Date
     const dateStr = new Date(transaction.date || new Date()).toLocaleString();
@@ -27,13 +26,14 @@ export const printReceipt = (transaction) => {
             .totals-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; }
             .footer { text-align: center; margin-top: 20px; font-size: 0.8rem; }
             .details { font-size: 0.8rem; margin-bottom: 10px; }
+            .discount-row { color: #000; font-style: italic; }
           </style>
         </head>
         <body>
           <div class="header">
-            <div class="store-name">JAN'S BAR</div>
-            <div>155 Main Street</div>
-            <div>Walford, IA</div>
+            <div class="store-name">THE LOCAL BAR</div>
+            <div>123 Main Street</div>
+            <div>Anytown, USA</div>
           </div>
   
           <div class="details">
@@ -53,17 +53,30 @@ export const printReceipt = (transaction) => {
   
           <div class="divider"></div>
   
+          ${discount > 0 ? `
+          <div class="totals-row discount-row">
+            <span>Discount</span>
+            <span>-$${discount.toFixed(2)}</span>
+          </div>
+          ` : ''}
+
           <div class="totals-row">
             <span>Subtotal</span>
-            <span>$${(total).toFixed(2)}</span>
+            <span>$${(total - (total * 0.07)).toFixed(2)}</span>
           </div>
+          
+          <div class="totals-row">
+            <span>Tax (7%)</span>
+            <span>$${(total * 0.07).toFixed(2)}</span>
+          </div>
+
           ${tip > 0 ? `
           <div class="totals-row">
             <span>Tip</span>
             <span>$${tip.toFixed(2)}</span>
           </div>
           ` : ''}
-          <div class="totals-row" style="font-size: 1.2rem; margin-top: 10px;">
+          <div class="totals-row" style="font-size: 1.2rem; margin-top: 10px; border-top: 2px solid #000; padding-top: 5px;">
             <span>TOTAL</span>
             <span>$${(total + tip).toFixed(2)}</span>
           </div>
