@@ -7,6 +7,7 @@ import VoidModal from './VoidModal';
 import { voidItem } from '../services/tabService';
 import TopBar from './TopBar';
 import { printReceipt } from '../utils/receiptService';
+import RecipeModal from './RecipeModal';
 
 const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [inventory, setInventory] = useState([]);
@@ -14,8 +15,11 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-
   const [isBusy, setIsBusy] = useState(false);
+
+  // 🆕 RECIPE MODAL STATE
+  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
+  const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
 
   // --- DISCOUNT STATE ---
   const [discount, setDiscount] = useState({ type: null, value: 0 }); // type: 'percent' | 'amount' | null
@@ -72,6 +76,13 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
     };
     loadData();
   }, []);
+
+  // 🆕 HANDLER FOR RECIPE CLICK
+  const handleRecipeClick = (e, itemName) => {
+    e.stopPropagation(); // Prevents adding the item to cart when clicking the info icon
+    setRecipeSearchTerm(itemName);
+    setIsRecipeModalOpen(true);
+  };
 
   // 👇 HAPPY HOUR CHECKER
   const checkHappyHour = (item) => {
@@ -590,8 +601,43 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         </div>
 
         <div className="menu-panel">
-          <div style={{ marginBottom: '10px' }}>
-            <input type="text" placeholder="🔍 Search items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '1px solid #555', background: '#2a2a2a', color: 'white' }} />
+          {/* 🔍 SEARCH BAR & RECIPE BUTTON CONTAINER */}
+          <div style={{ marginBottom: '10px', display: 'flex', gap: '10px' }}>
+            <input
+              type="text"
+              placeholder="🔍 Search items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                flex: 1, // Takes up remaining space
+                padding: '15px',
+                fontSize: '1.2rem',
+                borderRadius: '8px',
+                border: '1px solid #555',
+                background: '#2a2a2a',
+                color: 'white'
+              }}
+            />
+
+            {/* 🆕 NEW RECIPE BUTTON */}
+            <button
+              onClick={() => { setRecipeSearchTerm(''); setIsRecipeModalOpen(true); }}
+              style={{
+                padding: '0 20px',
+                background: '#6f42c1', // Purple color to distinguish it
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Open Recipe Database"
+            >
+              📖
+            </button>
           </div>
           {!searchTerm && (
             <div className="tabs">
@@ -725,6 +771,13 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         isOpen={isVoidModalOpen}
         onClose={() => !isBusy && setIsVoidModalOpen(false)}
         onConfirm={handleConfirmVoid}
+      />
+
+      {/* 🆕 ADD THIS COMPONENT */}
+      <RecipeModal
+        isOpen={isRecipeModalOpen}
+        onClose={() => setIsRecipeModalOpen(false)}
+        productName={recipeSearchTerm}
       />
 
       {isCheckoutOpen && (
