@@ -32,7 +32,7 @@ const RecipeModal = ({ isOpen, onClose, initialSearch }) => {
         setSelectedDrink(null);
 
         try {
-            // Search by Name
+            // Search by Name (covers "Gin Fizz", "Margarita", etc.)
             const res = await fetch(`https://www.thecocktaildb.com/api/json/v1/1/search.php?s=${term}`);
             const data = await res.json();
 
@@ -124,7 +124,6 @@ const RecipeModal = ({ isOpen, onClose, initialSearch }) => {
                 {/* VIEW 1: RESULTS LIST */}
                 {!loading && !error && view === 'list' && (
                     <>
-                        {/* 🆕 RESULT COUNT INDICATOR */}
                         <div style={{ marginBottom: '10px', color: '#888', fontStyle: 'italic', fontSize: '0.9rem', textAlign: 'right' }}>
                             Found {results.length} result{results.length !== 1 ? 's' : ''}
                         </div>

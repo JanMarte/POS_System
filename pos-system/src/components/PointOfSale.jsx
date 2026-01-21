@@ -1,6 +1,6 @@
 // src/components/PointOfSale.jsx
 import React, { useState, useEffect } from 'react';
-import { getInventory, saveSale, deductStock, getHappyHours } from '../data/repository'; 
+import { getInventory, saveSale, deductStock, getHappyHours } from '../data/repository';
 import { supabase } from '../supabaseClient';
 import Notification from './Notification';
 import VoidModal from './VoidModal';
@@ -11,7 +11,7 @@ import RecipeModal from './RecipeModal';
 
 const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [inventory, setInventory] = useState([]);
-  const [happyHours, setHappyHours] = useState([]); 
+  const [happyHours, setHappyHours] = useState([]);
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -436,55 +436,6 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
     setDiscount({ type: null, value: 0 }); // 👈 Fix: Clears discount when cancelled
   };
 
-  {/* 🆕 ADD NOTE MODAL */ }
-  {
-    isNoteModalOpen && (
-      <div className="modal-overlay">
-        <div className="modal-content" style={{ width: '400px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h3 style={{ margin: 0 }}>📝 Add Note</h3>
-            <button onClick={() => setIsNoteModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#aaa', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
-          </div>
-
-          <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px' }}>
-            Adding note for: <strong style={{ color: 'white' }}>{noteItem?.name}</strong>
-          </p>
-
-          <form onSubmit={handleSaveNote}>
-            <input
-              type="text"
-              autoFocus
-              placeholder="e.g. No Salt, Extra Lime, Allergy..."
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              style={{
-                width: '100%', padding: '12px', borderRadius: '5px',
-                border: '1px solid #555', background: '#333', color: 'white',
-                boxSizing: 'border-box', marginBottom: '20px', fontSize: '1.1rem'
-              }}
-            />
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setIsNoteModalOpen(false)}
-                style={{ flex: 1, padding: '12px', background: '#444', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                style={{ flex: 1, padding: '12px', background: '#007bff', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}
-              >
-                Save Note
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    )
-  }
-
   const finalizeSale = async () => {
     if (isBusy) return;
     setIsBusy(true);
@@ -628,23 +579,56 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
               <div
                 key={`${item.id}-${item.tab_id ? 'saved' : 'new'}-${index}`}
                 className="cart-item"
-                onClick={() => handleRemoveRequest(item)}
                 style={{
-                  borderLeft: item.isHappyHour ? '4px solid #e040fb' : 'none', // 👈 VISUAL INDICATOR
+                  borderLeft: item.isHappyHour ? '4px solid #e040fb' : 'none',
                   paddingLeft: item.isHappyHour ? '10px' : '0',
-                  pointerEvents: isBusy ? 'none' : 'auto'
+                  pointerEvents: isBusy ? 'none' : 'auto',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  padding: '10px'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                  <span>
-                    {item.name}
-                    {item.isHappyHour && <span style={{ fontSize: '0.7rem', background: '#e040fb', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>HH</span>}
-                    {item.tab_id && <span style={{ fontSize: '0.7rem', background: '#17a2b8', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>SAVED</span>}
-                    {item.quantity > 1 && <span style={{ marginLeft: '8px', background: '#007bff', padding: '2px 6px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold' }}>x{item.quantity}</span>}
-                  </span>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
+                {/* TOP ROW: Name, Price, Actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+                    {/* 🆕 NOTE BUTTON */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleOpenNoteModal(item); }}
+                      style={{
+                        background: 'transparent', border: '1px solid #555', borderRadius: '4px',
+                        cursor: 'pointer', color: '#aaa', padding: '2px 5px', fontSize: '0.8rem'
+                      }}
+                      title="Add Note"
+                    >
+                      ✏️
+                    </button>
+
+                    <span style={{ fontWeight: 'bold' }}>
+                      {item.name}
+                      {item.isHappyHour && <span style={{ fontSize: '0.7rem', background: '#e040fb', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>HH</span>}
+                      {item.tab_id && <span style={{ fontSize: '0.7rem', background: '#17a2b8', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>SAVED</span>}
+                      {item.quantity > 1 && <span style={{ marginLeft: '8px', background: '#007bff', padding: '2px 6px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold' }}>x{item.quantity}</span>}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span>${(item.price * item.quantity).toFixed(2)}</span>
+                    <span
+                      onClick={() => handleRemoveRequest(item)}
+                      style={{ color: '#dc3545', fontWeight: 'bold', cursor: 'pointer', padding: '0 5px' }}
+                    >
+                      ✕
+                    </span>
+                  </div>
                 </div>
-                <span style={{ color: 'red', fontWeight: 'bold', marginLeft: '10px' }}>X</span>
+
+                {/* 🆕 NOTE DISPLAY ROW */}
+                {item.note && (
+                  <div style={{ color: '#ffc107', fontSize: '0.85rem', fontStyle: 'italic', marginTop: '4px', paddingLeft: '32px' }}>
+                    Note: {item.note}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -901,7 +885,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       <RecipeModal
         isOpen={isRecipeModalOpen}
         onClose={() => setIsRecipeModalOpen(false)}
-        productName={recipeSearchTerm}
+        initialSearch={recipeSearchTerm}
       />
 
       {/* 🆕 CUSTOM ITEM MODAL */}
@@ -944,6 +928,53 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
               >
                 Add to Order
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 NOTE MODAL (MOVED HERE) */}
+      {isNoteModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0 }}>📝 Add Note</h3>
+              <button onClick={() => setIsNoteModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#aaa', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+            </div>
+
+            <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px' }}>
+              Adding note for: <strong style={{ color: 'white' }}>{noteItem?.name}</strong>
+            </p>
+
+            <form onSubmit={handleSaveNote}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="e.g. No Salt, Extra Lime, Allergy..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                style={{
+                  width: '100%', padding: '12px', borderRadius: '5px',
+                  border: '1px solid #555', background: '#333', color: 'white',
+                  boxSizing: 'border-box', marginBottom: '20px', fontSize: '1.1rem'
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsNoteModalOpen(false)}
+                  style={{ flex: 1, padding: '12px', background: '#444', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ flex: 1, padding: '12px', background: '#007bff', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  Save Note
+                </button>
+              </div>
             </form>
           </div>
         </div>
