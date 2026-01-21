@@ -1,6 +1,6 @@
 // src/components/PointOfSale.jsx
 import React, { useState, useEffect } from 'react';
-import { getInventory, saveSale, deductStock, getHappyHours } from '../data/repository'; // 👈 Import Happy Hours
+import { getInventory, saveSale, deductStock, getHappyHours } from '../data/repository'; 
 import { supabase } from '../supabaseClient';
 import Notification from './Notification';
 import VoidModal from './VoidModal';
@@ -11,11 +11,36 @@ import RecipeModal from './RecipeModal';
 
 const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [inventory, setInventory] = useState([]);
-  const [happyHours, setHappyHours] = useState([]); // 👈 Stores rules
+  const [happyHours, setHappyHours] = useState([]); 
   const [cart, setCart] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+
+  // 🆕 NOTE MODAL STATE & HANDLERS
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [noteItem, setNoteItem] = useState(null);
+  const [noteText, setNoteText] = useState('');
+
+  // Open the modal
+  const handleOpenNoteModal = (targetItem) => {
+    setNoteItem(targetItem);
+    setNoteText(targetItem.note || '');
+    setIsNoteModalOpen(true);
+  };
+
+  // Save the note to the cart
+  const handleSaveNote = (e) => {
+    e.preventDefault();
+    setCart(prev => prev.map(item => {
+      if (item === noteItem) {
+        return { ...item, note: noteText };
+      }
+      return item;
+    }));
+    setIsNoteModalOpen(false);
+    setNoteItem(null);
+  };
 
   // 🆕 RECIPE MODAL STATE
   const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
@@ -410,6 +435,55 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
     setCompletedOrder(null);
     setDiscount({ type: null, value: 0 }); // 👈 Fix: Clears discount when cancelled
   };
+
+  {/* 🆕 ADD NOTE MODAL */ }
+  {
+    isNoteModalOpen && (
+      <div className="modal-overlay">
+        <div className="modal-content" style={{ width: '400px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ margin: 0 }}>📝 Add Note</h3>
+            <button onClick={() => setIsNoteModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#aaa', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+          </div>
+
+          <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px' }}>
+            Adding note for: <strong style={{ color: 'white' }}>{noteItem?.name}</strong>
+          </p>
+
+          <form onSubmit={handleSaveNote}>
+            <input
+              type="text"
+              autoFocus
+              placeholder="e.g. No Salt, Extra Lime, Allergy..."
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              style={{
+                width: '100%', padding: '12px', borderRadius: '5px',
+                border: '1px solid #555', background: '#333', color: 'white',
+                boxSizing: 'border-box', marginBottom: '20px', fontSize: '1.1rem'
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setIsNoteModalOpen(false)}
+                style={{ flex: 1, padding: '12px', background: '#444', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                style={{ flex: 1, padding: '12px', background: '#007bff', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Save Note
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   const finalizeSale = async () => {
     if (isBusy) return;
