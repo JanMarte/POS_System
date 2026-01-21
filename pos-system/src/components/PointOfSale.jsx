@@ -40,6 +40,12 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
   const [isVoidModalOpen, setIsVoidModalOpen] = useState(false);
   const [itemToVoid, setItemToVoid] = useState(null);
 
+  // 🆕 CUSTOM ITEM STATE
+  const [isCustomItemModalOpen, setIsCustomItemModalOpen] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
+
+  // PAYMENT STATES
   const [paymentMethod, setPaymentMethod] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
   const [changeDue, setChangeDue] = useState(null);
@@ -60,6 +66,32 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       case 'pop': return '🥤';
       default: return '🍽️';
     }
+  };
+
+  // 🆕 HANDLE CUSTOM ITEM SUBMIT
+  const handleCustomItemSubmit = (e) => {
+    e.preventDefault(); // Prevent form refresh
+    const price = parseFloat(customItemPrice);
+    if (!customItemName || isNaN(price) || price < 0) {
+      return notify("Please enter a valid name and price.", "error");
+    }
+
+    const newItem = {
+      // Create a pseudo-ID based on name so identical custom items merge in cart
+      id: `custom-${customItemName.toLowerCase().replace(/\s+/g, '-')}`,
+      name: customItemName,
+      price: price,
+      category: 'custom',
+      stock_count: null, // Custom items don't track stock
+      is_available: true
+    };
+
+    addToCart(newItem);
+
+    // Reset and Close
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setIsCustomItemModalOpen(false);
   };
 
   const refreshInventory = async () => {
@@ -648,6 +680,24 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
           )}
 
           <div className="menu-grid">
+            {/* 🆕 CUSTOM ITEM BUTTON */}
+            <div
+              className="product-card"
+              onClick={() => setIsCustomItemModalOpen(true)}
+              style={{
+                border: '2px dashed #777', // Dashed border to make it stand out
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                background: '#222'
+              }}
+            >
+              <div style={{ textAlign: 'center', opacity: 0.8 }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '5px' }}>➕</div>
+                <h3 style={{ margin: 0, color: '#ccc' }}>Custom Item</h3>
+              </div>
+            </div>
             {displayedItems.map(item => {
               const cartItem = cart.find(c => c.id === item.id && !c.tab_id);
               const quantityInCart = cartItem ? cartItem.quantity : 0;
@@ -779,6 +829,51 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         onClose={() => setIsRecipeModalOpen(false)}
         productName={recipeSearchTerm}
       />
+
+      {/* 🆕 CUSTOM ITEM MODAL */}
+      {isCustomItemModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '350px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0 }}>➕ Custom Item</h2>
+              <button onClick={() => setIsCustomItemModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#aaa', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+            </div>
+
+            <form onSubmit={handleCustomItemSubmit}>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', color: '#aaa', marginBottom: '5px', fontSize: '0.9rem' }}>Item Description</label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. Corkage Fee, Open Food"
+                  value={customItemName}
+                  onChange={(e) => setCustomItemName(e.target.value)}
+                  style={{ width: '100%', padding: '12px', borderRadius: '5px', border: '1px solid #555', background: '#333', color: 'white', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '25px' }}>
+                <label style={{ display: 'block', color: '#aaa', marginBottom: '5px', fontSize: '0.9rem' }}>Price ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={customItemPrice}
+                  onChange={(e) => setCustomItemPrice(e.target.value)}
+                  style={{ width: '100%', padding: '12px', borderRadius: '5px', border: '1px solid #555', background: '#333', color: 'white', fontSize: '1.2rem', fontWeight: 'bold', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                style={{ width: '100%', padding: '15px', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Add to Order
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {isCheckoutOpen && (
         <div className="modal-overlay">
