@@ -324,9 +324,11 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         .eq('status', 'active');
 
       const groupedCart = (items || []).reduce((acc, dbItem) => {
+        // Find item matching ID, Price, AND Note
         const existingItem = acc.find(i =>
           i.inventory_id === dbItem.inventory_id &&
-          i.price === dbItem.price
+          i.price === dbItem.price &&
+          (i.note || '') === (dbItem.note || '') // 👈 NEW: Only merge if notes match
         );
 
         if (existingItem) {
@@ -338,7 +340,8 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
             id: dbItem.inventory_id,
             quantity: dbItem.quantity,
             alreadyDeducted: true,
-            db_ids: [dbItem.id]
+            db_ids: [dbItem.id],
+            note: dbItem.note
           });
         }
         return acc;
@@ -367,6 +370,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       const name = customerName || 'Walk-in';
       let tabIdToUse = activeTabId;
 
+      // 1. Create Tab if it doesn't exist
       if (!tabIdToUse) {
         const { data: newTab, error } = await supabase.from('tabs').insert([{ customer_name: name, status: 'open' }]).select().single();
         if (error) throw error;
@@ -375,8 +379,11 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         await supabase.from('tabs').update({ customer_name: name }).eq('id', tabIdToUse);
       }
 
+      // 2. Separate New Items vs Existing Items
       const newItems = cart.filter(item => !item.alreadyDeducted);
+      const existingItems = cart.filter(item => item.alreadyDeducted && item.db_ids && item.db_ids.length > 0);
 
+      // --- HANDLE NEW ITEMS (INSERT) ---
       if (newItems.length > 0) {
         await deductStock(newItems);
 
@@ -389,20 +396,36 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
               name: item.name,
               price: item.price,
               quantity: 1,
-              status: 'active'
+              status: 'active',
+              note: item.note || null // 👈 IMPORTANT: Ensure note is saved for new items
             });
           }
         });
 
-        await supabase.from('tab_items').insert(itemsToInsert);
+        const { error: insertError } = await supabase.from('tab_items').insert(itemsToInsert);
+        if (insertError) throw insertError;
+      }
+
+      // --- HANDLE EXISTING ITEMS (UPDATE NOTES) ---
+      // This loop updates the 'note' field for items that were already in the DB
+      for (const item of existingItems) {
+        const { error: updateError } = await supabase
+          .from('tab_items')
+          .update({ note: item.note || null })
+          .in('id', item.db_ids); // Updates all specific rows associated with this cart item
+
+        if (updateError) console.error("Error updating note:", updateError);
       }
 
       await refreshInventory();
       notify(`Tab saved for ${name}!`);
+
+      // Clear Cart & State
       setCart([]);
       setCustomerName('');
       setActiveTabId(null);
-      setDiscount({ type: null, value: 0 }); // Reset discount
+      setDiscount({ type: null, value: 0 });
+
     } catch (err) {
       console.error(err);
       notify("Error saving tab", "error");
@@ -1005,6 +1028,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
                     </div>
                   </div>
                 )}
+                {/* PAYMENT METHOD SELECTION */}
                 {!paymentMethod && (
                   <div>
                     <h3 style={{ color: '#aaa', marginBottom: '10px' }}>Payment Method</h3>
@@ -1014,13 +1038,71 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
                     </div>
                   </div>
                 )}
-                {paymentMethod === 'cash' && !changeDue && (
+
+                {/* CASH INPUT SCREEN - ⚡ FIX: Use changeDue === null */}
+                {paymentMethod === 'cash' && changeDue === null && (
                   <div>
                     <h3>Amount Received</h3>
-                    <input type="number" className="input-field" autoFocus value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+
+                    {/* SMART DYNAMIC CASH BUTTONS */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '15px' }}>
+
+                      {/* Exact Change */}
+                      <button
+                        onClick={() => {
+                          setAmountPaid(grandTotal.toFixed(2));
+                          setChangeDue(0);
+                        }}
+                        disabled={isBusy}
+                        style={{ padding: '15px', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}
+                      >
+                        Exact
+                      </button>
+
+                      {/* Smart Calculations */}
+                      {Array.from(new Set([
+                        ...[5, 10, 20, 50, 100],
+                        Math.ceil(grandTotal / 10) * 10,
+                        Math.ceil(grandTotal / 20) * 20,
+                        Math.ceil(grandTotal / 50) * 50,
+                        Math.ceil(grandTotal / 100) * 100,
+                        Math.ceil(grandTotal / 50) * 50 + 50,
+                        Math.ceil(grandTotal / 100) * 100 + 100
+                      ]))
+                        .filter(amt => amt > grandTotal)
+                        .sort((a, b) => a - b)
+                        .slice(0, 5)
+                        .map(amt => (
+                          <button
+                            key={amt}
+                            onClick={() => {
+                              setAmountPaid(amt.toFixed(2));
+                              setChangeDue(amt - grandTotal);
+                            }}
+                            disabled={isBusy}
+                            style={{ padding: '15px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '5px', fontSize: '1.2rem', cursor: 'pointer' }}
+                          >
+                            ${amt}
+                          </button>
+                        ))}
+                    </div>
+
+                    <input
+                      type="number"
+                      className="input-field"
+                      autoFocus
+                      value={amountPaid}
+                      onChange={(e) => setAmountPaid(e.target.value)}
+                      placeholder="Enter amount..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') processCash();
+                      }}
+                    />
                     <button disabled={isBusy} className="pay-btn-large" onClick={processCash}>CALCULATE CHANGE</button>
                   </div>
                 )}
+
+                {/* CHANGE DUE / FINISH SCREEN */}
                 {changeDue !== null && (
                   <div>
                     <h3 style={{ color: 'lime', fontSize: '2rem' }}>Change: ${changeDue.toFixed(2)}</h3>
@@ -1029,6 +1111,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
                     </button>
                   </div>
                 )}
+
                 {paymentMethod === 'card' && (
                   <div>
                     <h3>{isBusy ? <span className="animated-dots">Processing Payment</span> : `Charge $${grandTotal.toFixed(2)}`}</h3>
@@ -1037,7 +1120,9 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
                     </button>
                   </div>
                 )}
+
                 <button disabled={isBusy} onClick={closeCheckout} style={{ marginTop: '20px', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', textDecoration: 'underline' }}>Cancel Transaction</button>
+
               </>
             )}
 
