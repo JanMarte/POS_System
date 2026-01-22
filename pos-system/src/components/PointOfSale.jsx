@@ -195,8 +195,13 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
     }
 
     setCart(prevCart => {
-      // Find existing item with SAME price (so regular and happy hour items don't merge)
-      const existing = prevCart.find(item => item.id === product.id && !item.tab_id && item.price === finalPrice);
+      // ⚡ FIX: Only merge with an item that has NO note
+      const existing = prevCart.find(item =>
+        item.id === product.id &&
+        !item.tab_id &&
+        item.price === finalPrice &&
+        !item.note // 👈 Only merge if the existing item has no note
+      );
 
       if (existing) {
         return prevCart.map(item => (item === existing)
@@ -204,7 +209,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
           : item
         );
       } else {
-        const newItem = { ...product, price: finalPrice, quantity: 1, isHappyHour };
+        const newItem = { ...product, price: finalPrice, quantity: 1, isHappyHour, note: '' };
         if (isHappyHour) notify(`Happy Hour! ${rule.name} applied.`);
         return [...prevCart, newItem];
       }
@@ -324,11 +329,11 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
         .eq('status', 'active');
 
       const groupedCart = (items || []).reduce((acc, dbItem) => {
-        // Find item matching ID, Price, AND Note
+        // ⚡ FIX: Only merge if ID, Price, AND Note match
         const existingItem = acc.find(i =>
           i.inventory_id === dbItem.inventory_id &&
           i.price === dbItem.price &&
-          (i.note || '') === (dbItem.note || '') // 👈 NEW: Only merge if notes match
+          (i.note || '') === (dbItem.note || '') // 👈 Strict Note Check
         );
 
         if (existingItem) {
@@ -341,7 +346,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
             quantity: dbItem.quantity,
             alreadyDeducted: true,
             db_ids: [dbItem.id],
-            note: dbItem.note
+            note: dbItem.note || '' // Ensure note is loaded
           });
         }
         return acc;
@@ -350,7 +355,7 @@ const PointOfSale = ({ onLogout, onNavigateToDashboard, user }) => {
       setCart(groupedCart);
       setCustomerName(tab.customer_name);
       setActiveTabId(tab.id);
-      setDiscount({ type: null, value: 0 }); // Reset discount when loading a new tab
+      setDiscount({ type: null, value: 0 });
       setShowTabList(false);
       notify(`Tab loaded: ${tab.customer_name}`);
     } catch (e) {
