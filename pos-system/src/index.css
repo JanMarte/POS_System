@@ -1,268 +1,1097 @@
 /* src/index.css */
 
-/* =========================================
-   1. KIOSK MODE (Disable Selection & Dragging)
-   ========================================= */
+/* ==========================================================================
+    1. THEME VARIABLES & CONFIGURATION
+    ========================================================================== */
+:root {
+    /* 🎨 Color Palette */
+    --accent-blue: #60a5fa;
+    --warning-gold: #f59e0b;
+    --danger-red: #dc3545;
+    --success-green: #28a745;
+    --info-teal: #17a2b8;
+
+    /* 🌑 Dark Mode Backgrounds */
+    --bg-color: #2f3640;
+    --blob-1: #4c1d95;
+    --blob-2: #1e3a8a;
+
+    /* 💎 Glassmorphism Settings */
+    --glass-panel: rgba(0, 0, 0, 0.4);
+    --glass-item: rgba(255, 255, 255, 0.08);
+    --glass-border: rgba(255, 255, 255, 0.1);
+
+    /* 📝 Typography */
+    --text-color: #ffffff;
+    --text-muted: #b0b0b0;
+    --role-color: #cccccc;
+
+    /* 📐 Shapes & Shadows */
+    --shadow-lg: 0 15px 35px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.2);
+    --radius: 24px;
+    --radius-sm: 16px;
+
+    /* 🧩 Component Specifics */
+    --pill-bg: rgba(255, 255, 255, 0.05);
+    --hover-bg: rgba(255, 255, 255, 0.1);
+    --input-bg: rgba(0, 0, 0, 0.5);
+    --dropdown-bg: rgba(10, 10, 10, 0.95);
+}
+
+/* ☀️ Light Mode Overrides */
+[data-theme="light"] {
+    --accent-blue: #0346a5;
+    --bg-color: #475569;
+    --blob-1: #818cf8;
+    --blob-2: #3b82f6;
+
+    --glass-panel: rgba(255, 255, 255, 0.5);
+    --glass-item: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.4);
+
+    --text-color: #0f172a;
+    --text-muted: #334155;
+    --role-color: #000000;
+
+    --shadow-lg: 0 15px 35px rgba(0, 0, 0, 0.2);
+    --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.1);
+
+    --pill-bg: rgba(255, 255, 255, 0.4);
+    --hover-bg: rgba(0, 0, 0, 0.05);
+    --input-bg: rgba(255, 255, 255, 0.6);
+    --dropdown-bg: rgba(255, 255, 255, 0.95);
+}
+
+/* ==========================================================================
+    2. RESETS & CORE STYLES
+    ========================================================================== */
 * {
     -webkit-user-select: none;
-    /* Safari/Chrome */
     -moz-user-select: none;
-    /* Firefox */
     -ms-user-select: none;
-    /* IE/Edge */
     user-select: none;
-    /* Standard */
     -webkit-touch-callout: none;
-    /* Disable iOS magnifying glass */
     box-sizing: border-box;
 }
 
-/* Re-enable typing for inputs */
 input,
 textarea,
 select {
     -webkit-user-select: text;
     user-select: text;
+    font-family: inherit;
 }
 
-/* Stop image dragging */
 img {
-    -webkit-user-drag: none;
-    user-drag: none;
     pointer-events: none;
-}
-
-/* =========================================
-   2. GLOBAL DARK THEME
-   ========================================= */
-:root {
-    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-    line-height: 1.5;
-    font-weight: 400;
-    color-scheme: dark;
-    color: rgba(255, 255, 255, 0.87);
-    background-color: #242424;
+    -webkit-user-drag: none;
 }
 
 body {
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    transition: background-color 0.3s ease;
 }
 
 button {
     font-family: inherit;
     cursor: pointer;
     transition: transform 0.1s;
-    /* Snappy click effect */
 }
 
 button:active {
     transform: scale(0.98);
 }
 
-/* =========================================
-   3. POS LAYOUT (Split Screen)
-   ========================================= */
-.pos-container {
+/* ==========================================================================
+    3. GLOBAL UTILITY CLASSES
+    ========================================================================== */
+
+/* 💎 Glass Container */
+.glass-panel {
+    background: var(--glass-panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    color: var(--text-color);
+    transition: all 0.3s ease;
+}
+
+/* 💎 Glass Item */
+.glass-item {
+    background: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(5px);
+    color: var(--text-color);
+    transition: all 0.2s ease;
+}
+
+/* 🧱 Helper Classes */
+.w-100 {
+    width: 100%;
+}
+
+.flex {
     display: flex;
-    height: 100vh;
-    width: 100vw;
+}
+
+.flex-col {
+    flex-direction: column;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.items-start {
+    align-items: flex-start;
+}
+
+.justify-between {
+    justify-content: space-between;
+}
+
+.justify-center {
+    justify-content: center;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.font-bold {
+    font-weight: bold;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.opacity-50 {
+    opacity: 0.5;
+}
+
+.relative {
+    position: relative;
+}
+
+.overflow-hidden {
     overflow: hidden;
 }
 
-/* Left Side: Ticket */
-.ticket-panel {
-    width: 35%;
-    /* Fixed width for ticket */
-    background-color: #1e1e1e;
-    border-right: 1px solid #444;
-    display: flex;
-    flex-direction: column;
-    padding: 20px;
+/* Spacing Helpers */
+.gap-5 {
+    gap: 5px;
 }
 
-/* Right Side: Menu */
-.menu-panel {
-    width: 65%;
-    /* Remaining space */
-    padding: 20px;
-    background-color: #121212;
-    display: flex;
-    flex-direction: column;
+.gap-8 {
+    gap: 8px;
 }
 
-/* =========================================
-   4. COMPONENTS
-   ========================================= */
-
-/* Product Grid */
-.menu-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 15px;
-    overflow-y: auto;
-    padding-bottom: 20px;
-}
-
-/* Individual Product Card */
-.product-card {
-    background-color: #333;
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    border: 1px solid #444;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 140px;
-}
-
-.product-card:hover {
-    background-color: #444;
-}
-
-.product-card:active {
-    background-color: #555;
-    transform: scale(0.95);
-}
-
-/* Items in the Cart */
-.cart-item {
-    padding: 15px;
-    border-bottom: 1px solid #333;
-    cursor: pointer;
-    font-size: 1.1rem;
-}
-
-.cart-item:hover {
-    background-color: #2a2a2a;
-    color: #ff4d4f;
-    /* Red text on hover to indicate delete */
-}
-
-/* Category Tabs (Beer, Liquor, etc) */
-.tabs {
-    display: flex;
+.gap-10 {
     gap: 10px;
-    margin-bottom: 20px;
-    overflow-x: auto;
 }
 
-.tab-btn {
-    flex: 1;
-    padding: 15px;
-    font-size: 1.2rem;
-    background-color: #333;
-    border: 1px solid #555;
-    color: #fff;
-    border-radius: 8px;
+.gap-20 {
+    gap: 20px;
 }
 
-.tab-btn.active {
-    background-color: #007bff;
-    /* Blue for active tab */
-    border-color: #007bff;
-    font-weight: bold;
-}
-
-/* Large Pay Buttons */
-.pay-btn-large {
-    width: 100%;
-    padding: 20px;
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: white;
-    background-color: #28a745;
-    border: none;
-    border-radius: 8px;
+.mt-10 {
     margin-top: 10px;
 }
 
-/* =========================================
-   5. ADMIN DASHBOARD STYLES
-   ========================================= */
-.dashboard-container {
-    padding: 40px;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.dashboard-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
-    border-bottom: 1px solid #444;
-    padding-bottom: 20px;
-}
-
-.stats-card {
-    background: #333;
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border: 1px solid #444;
-}
-
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
+.mt-20 {
     margin-top: 20px;
 }
 
-.data-table th,
-.data-table td {
-    text-align: left;
-    padding: 12px;
-    border-bottom: 1px solid #444;
+.mt-auto {
+    margin-top: auto;
 }
 
-.data-table th {
-    color: #aaa;
-    font-weight: normal;
-    text-transform: uppercase;
+.mb-5 {
+    margin-bottom: 5px;
+}
+
+.mb-10 {
+    margin-bottom: 10px;
+}
+
+.mb-15 {
+    margin-bottom: 15px;
+}
+
+.mb-20 {
+    margin-bottom: 20px;
+}
+
+.p-8 {
+    padding: 8px !important;
+}
+
+.px-15 {
+    padding: 10px 15px !important;
+}
+
+.ml-5 {
+    margin-left: 5px;
+}
+
+/* Text Sizes & Colors */
+.text-lg {
+    font-size: 1.2rem;
+}
+
+.text-sm {
+    font-size: 0.8rem;
+}
+
+.text-danger {
+    color: var(--danger-red) !important;
+}
+
+.text-gold {
+    color: var(--warning-gold) !important;
+}
+
+.text-green {
+    color: var(--success-green) !important;
+}
+
+.text-blue {
+    color: var(--accent-blue) !important;
+}
+
+.text-purple {
+    color: #e040fb !important;
+}
+
+.text-normal {
+    color: var(--text-color) !important;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+    4. MAIN LAYOUT (POS GRID)
+    ========================================================================== */
+.pos-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    padding: 15px;
+    background-color: var(--bg-color);
+    background-image:
+        radial-gradient(circle at 0% 0%, var(--blob-1) 0%, transparent 60%),
+        radial-gradient(circle at 100% 100%, var(--blob-2) 0%, transparent 60%);
+    background-size: 100% 100%;
+    background-attachment: fixed;
+    color: var(--text-color);
+    transition: all 0.5s ease;
+}
+
+.pos-content-wrapper {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+    z-index: 10;
+    position: relative;
+}
+
+.ticket-panel {
+    width: 35%;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    height: 100%;
+    overflow: hidden;
+}
+
+.menu-panel {
+    width: 65%;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(150, 150, 150, 0.3);
+    border-radius: 10px;
+}
+
+/* Loading Animation */
+.animated-dots::after {
+    content: ".";
+    animation: dots 1.5s steps(1, end) infinite;
+    display: inline-block;
+    width: 0px;
+    text-align: left;
+}
+
+@keyframes dots {
+
+    0%,
+    20% {
+        content: ".";
+    }
+
+    40% {
+        content: "..";
+    }
+
+    60%,
+    100% {
+        content: "...";
+    }
+}
+
+/* ==========================================================================
+    5. UI COMPONENTS: BUTTONS & INPUTS
+    ========================================================================== */
+.btn-glass {
+    flex: 1;
+    padding: 15px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    color: white;
+    transition: all 0.2s ease;
+}
+
+.btn-glass:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    filter: brightness(1.1);
+}
+
+.btn-glass:active {
+    transform: scale(0.98);
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.btn-glass:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    filter: grayscale(0.5);
+}
+
+/* Button Variants */
+.btn-save {
+    background: var(--info-teal);
+}
+
+.btn-pay {
+    background: var(--success-green);
+}
+
+.btn-danger {
+    background: var(--danger-red);
+}
+
+.btn-secondary {
+    background: #6c757d;
+}
+
+.btn-pay-cash {
+    background: #007bff;
+}
+
+.btn-pay-card {
+    background: #6610f2;
+}
+
+.btn-pay-exact {
+    background: var(--info-teal);
+    font-weight: bold;
+}
+
+.btn-receipt-print {
+    background: white;
+    color: black;
+}
+
+.btn-receipt-new {
+    background: #007bff;
+}
+
+.btn-action-sm {
+    padding: 8px 15px;
+    fontSize: 0.9rem;
+}
+
+/* Inputs */
+.input-glass {
+    background: var(--input-bg) !important;
+    color: var(--text-color) !important;
+    border: 2px solid transparent !important;
+    border-radius: 12px;
+    font-weight: bold;
+    padding: 12px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.input-glass:focus {
+    border-color: var(--accent-blue) !important;
+    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.2) !important;
+    outline: none;
+}
+
+/* ==========================================================================
+    6. TOP BAR COMPONENT
+    ========================================================================== */
+.top-bar-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 25px;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 100;
+}
+
+.top-bar-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.top-bar-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text-color);
+}
+
+.nav-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+    padding: 8px 20px;
+    border-radius: 50px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
     font-size: 0.9rem;
 }
 
-/* Forms (Admin Inputs) */
-.input-dark {
-    background: #222;
-    border: 1px solid #555;
+.nav-back-btn:hover {
+    background: var(--accent-blue);
     color: white;
-    padding: 10px;
-    border-radius: 4px;
-    font-size: 1rem;
+    border-color: var(--accent-blue);
 }
 
-/* =========================================
-   6. MODALS
-   ========================================= */
+.btn-dashboard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    /* Outline Style */
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+    /* Shape */
+    padding: 8px 20px;
+    border-radius: 50px;
+    /* Text */
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.btn-dashboard:hover {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* User Profile */
+.user-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--pill-bg);
+    padding: 5px 15px 5px 5px;
+    border-radius: 50px;
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.user-pill:hover {
+    background: var(--hover-bg);
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.8rem;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.user-info-group {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    text-align: left;
+}
+
+.user-name {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-color);
+}
+
+.user-role {
+    font-size: 0.65rem;
+    color: var(--role-color);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.user-session-time {
+    font-size: 0.55rem;
+    color: var(--accent-blue);
+    font-weight: 800;
+    margin-top: 2px;
+    opacity: 0.9;
+    /* 🕒 Add this to prevent UI jittering */
+    font-variant-numeric: tabular-nums;
+    min-width: 65px;
+}
+
+/* Dropdown */
+.dropdown-arrow {
+    font-size: 0.7rem;
+    transition: transform 0.2s ease;
+    opacity: 0.7;
+}
+
+.dropdown-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+.user-menu-dropdown {
+    position: absolute;
+    top: 130%;
+    right: 0;
+    width: 220px;
+    background: var(--dropdown-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    padding: 10px;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.user-menu-dropdown.open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-radius: 12px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.menu-item:hover {
+    background: var(--hover-bg);
+}
+
+.menu-item-danger {
+    color: var(--danger-red) !important;
+    transition: all 0.2s;
+}
+
+.menu-item-danger:hover {
+    background: rgba(220, 53, 69, 0.15) !important;
+    padding-left: 20px;
+}
+
+.menu-divider {
+    height: 1px;
+    background: var(--glass-border);
+    margin: 5px 0;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+    width: 44px;
+    height: 24px;
+    background: rgba(120, 120, 120, 0.3);
+    border-radius: 20px;
+    position: relative;
+    transition: 0.3s;
+    border: 1px solid var(--glass-border);
+}
+
+.theme-toggle.light {
+    background: var(--accent-blue);
+}
+
+.toggle-knob {
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    transition: 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.theme-toggle.light .toggle-knob {
+    left: 21px;
+}
+
+/* ==========================================================================
+    7. TICKET PANEL & CART
+    ========================================================================== */
+.ticket-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.ticket-title {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.ticket-toolbar {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-toolbar-sm {
+    padding: 8px 15px;
+    font-size: 0.9rem;
+}
+
+/* Cart Layout */
+.cart-list-container {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding-right: 5px;
+}
+
+.cart-item-container {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-left: 1px solid var(--glass-border);
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.cart-item-container.happy-hour {
+    border-left: 4px solid #e040fb;
+}
+
+.cart-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.cart-item-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cart-item-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Item Actions */
+.btn-icon-sm {
+    padding: 6px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon-sm:hover {
+    background: var(--hover-bg);
+    color: var(--accent-blue);
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
+}
+
+.btn-remove-item {
+    color: var(--danger-red);
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 8px;
+    font-size: 1.2rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    background: transparent;
+}
+
+.btn-remove-item:hover {
+    transform: scale(1.2) rotate(90deg);
+    color: #ff6b6b;
+    text-shadow: 0 0 8px var(--danger-red), 0 0 15px var(--danger-red);
+}
+
+/* Tags */
+.tag-hh {
+    font-size: 0.7rem;
+    background: #e040fb;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 4px;
+    margin-left: 5px;
+}
+
+.tag-saved {
+    font-size: 0.7rem;
+    background: #17a2b8;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 4px;
+    margin-left: 5px;
+}
+
+.tag-qty {
+    margin-left: 8px;
+    background: var(--accent-blue);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: white;
+}
+
+.item-note-text {
+    color: #ffc107;
+    font-size: 0.85rem;
+    font-style: italic;
+    margin-top: 4px;
+    padding-left: 32px;
+}
+
+/* Totals Area */
+.ticket-totals {
+    border-top: 1px solid var(--glass-border);
+    padding-top: 10px;
+    margin-top: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.totals-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.totals-row.discount {
+    color: #ffc107;
+}
+
+.grand-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 5px;
+}
+
+.grand-total-price {
+    font-size: 2rem;
+    margin: 0;
+    text-align: right;
+}
+
+.ticket-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    width: 100%;
+}
+
+/* ==========================================================================
+    8. MENU PANEL & PRODUCTS
+    ========================================================================== */
+.menu-search-container {
+    margin-bottom: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+.input-search {
+    flex: 1;
+    font-size: 1.2rem;
+}
+
+.btn-recipe {
+    padding: 0 20px;
+    background: #6f42c1;
+    color: white;
+    border: none;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Categories (Shared with Admin Tabs) */
+.category-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+}
+
+/* Outline Base Style */
+.btn-category {
+    padding: 8px 20px;
+    border-radius: 50px;
+    background: transparent;
+    border: 1px solid var(--text-muted);
+    color: var(--text-muted);
+    font-weight: bold;
+    white-space: nowrap;
+    transition: all 0.2s;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+/* Hover & Active State (Solid Blue) */
+.btn-category:hover,
+.btn-category.active {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.menu-grid {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 15px;
+    align-content: start;
+    padding-top: 10px;
+}
+
+/* Product Cards */
+.product-card-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.product-card-container.disabled {
+    cursor: not-allowed;
+}
+
+.product-card-container.sold-out-bg {
+    background: rgba(128, 128, 128, 0.15);
+}
+
+.product-content {
+    padding: 15px;
+    text-align: center;
+}
+
+.product-content.dimmed {
+    opacity: 0.4;
+    filter: grayscale(100%);
+}
+
+.product-icon {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.product-name {
+    margin: 0 0 5px 0;
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+.product-price {
+    font-size: 1.1rem;
+    color: var(--accent-blue);
+}
+
+.product-price.muted {
+    color: var(--text-muted);
+}
+
+.card-custom-add {
+    border: 2px dashed var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.custom-add-content {
+    text-align: center;
+    opacity: 0.7;
+}
+
+.custom-icon-lg {
+    font-size: 2.5rem;
+    margin-bottom: 5px;
+}
+
+.custom-text-muted {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+/* Ribbons */
+.ribbon {
+    position: absolute;
+    top: 25px;
+    right: -40px;
+    transform: rotate(45deg);
+    width: 150px;
+    text-align: center;
+    padding: 5px 0;
+    font-weight: 900;
+    font-size: 0.85rem;
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+}
+
+.ribbon.sold-out {
+    background: linear-gradient(45deg, #d90429, #ef233c);
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.ribbon.stock-left {
+    background: linear-gradient(45deg, #f09819, #edde5d);
+    color: #4a3b00;
+}
+
+/* ==========================================================================
+    9. MODALS
+    ========================================================================== */
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    /* Darker backdrop */
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 2000;
     backdrop-filter: blur(5px);
-    /* Blur effect behind modal */
 }
 
 .modal-content {
-    background: #1e1e1e;
+    background-color: var(--bg-color);
+    background-image:
+        radial-gradient(circle at 0% 0%, var(--blob-1) 0%, transparent 60%),
+        radial-gradient(circle at 100% 100%, var(--blob-2) 0%, transparent 60%);
+    background-size: 100% 100%;
+    background-attachment: fixed;
     padding: 30px;
-    border-radius: 12px;
-    border: 1px solid #444;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border-radius: var(--radius);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg);
     animation: modalPop 0.3s ease-out;
+    color: var(--text-color);
+    max-width: 500px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
 }
 
 @keyframes modalPop {
@@ -277,23 +1106,821 @@ button:active {
     }
 }
 
-.input-field {
-    width: 100%;
-    padding: 20px;
-    font-size: 2rem;
-    text-align: center;
-    margin-bottom: 20px;
-    border-radius: 8px;
-    border: 2px solid #555;
-    background-color: #333;
-    color: white;
+/* --- Headers --- */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    /* Increased spacing */
 }
 
-/* =========================================
-   7. CHART ANIMATIONS
-   ========================================= */
+.modal-title-nospace {
+    margin-top: 0;
+}
 
-/* The "Slide Down" Effect for the Dashboard Accordion */
+.modal-width-sm {
+    width: 400px;
+}
+
+.no-margin {
+    margin: 0;
+}
+
+/* Close Button ("X") */
+.modal-close-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.modal-close-btn:hover {
+    background: var(--danger-red);
+    border-color: var(--danger-red);
+    color: white;
+    transform: rotate(90deg);
+    box-shadow: 0 0 15px var(--danger-red);
+}
+
+/* 🎨 NEW: Modern Form Layouts */
+.modal-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Two equal columns */
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    /* Space between label and input */
+    margin-bottom: 0;
+    /* Handled by grid gap */
+}
+
+.form-group.full-width {
+    grid-column: span 2;
+    /* Stretch across both columns */
+}
+
+/* 🎨 NEW: Clean Label Style (Replaces old blocky labels) */
+.modal-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-left: 5px;
+}
+
+/* 🎨 NEW: Footer Actions */
+.modal-actions {
+    display: flex;
+    justify-content: space-between;
+    /* Pushes Delete to left, Save to right */
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 20px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.action-right {
+    display: flex;
+    gap: 10px;
+}
+
+/* 🎨 NEW: Toggle Switch for "Available" */
+.toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: var(--pill-bg);
+    padding: 10px 15px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 50px;
+    /* Match input height */
+}
+
+.toggle-row:hover {
+    background: var(--hover-bg);
+    border-color: var(--accent-blue);
+}
+
+.toggle-active {
+    border-color: var(--success-green);
+    background: rgba(40, 167, 69, 0.1);
+}
+
+/* 🔙 Back Button (Premium "Squircle" Style) */
+.modal-back-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(4px);
+    color: var(--text-muted);
+    font-size: 1.4rem;
+    line-height: 1;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 2px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.modal-back-btn:hover {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+    transform: translateX(-4px);
+    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+}
+
+.modal-back-btn:active {
+    transform: translateX(-4px) scale(0.95);
+}
+
+/* ==========================================================================
+    10. SPECIFIC MODAL CONTENTS
+    ========================================================================== */
+.tab-list-container {
+    max-height: 400px;
+    overflow-y: auto;
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tab-list-item {
+    padding: 15px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    transition: transform 0.2s;
+}
+
+.text-center-muted {
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Discount Modal */
+.btn-pill-gold {
+    background: transparent;
+    border: 1px solid var(--warning-gold);
+    color: var(--warning-gold);
+    padding: 5px 12px;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-pill-gold:hover {
+    background: var(--warning-gold);
+    color: #1a1a1a;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+
+.discount-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.btn-discount-option {
+    padding: 20px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-discount-option:hover {
+    border-color: var(--warning-gold);
+    color: var(--warning-gold);
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.btn-comp {
+    border-color: var(--danger-red) !important;
+    color: var(--danger-red) !important;
+}
+
+.btn-comp:hover {
+    background: rgba(220, 53, 69, 0.1) !important;
+}
+
+.discount-custom-section {
+    border-top: 1px solid var(--glass-border);
+    padding-top: 20px;
+    margin-top: 10px;
+}
+
+.discount-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+.discount-subtitle {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+}
+
+.btn-remove-discount {
+    margin-top: 20px;
+    width: 100%;
+    opacity: 0.8;
+}
+
+/* --- Checkout Layout --- */
+.checkout-summary {
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 10px;
+}
+
+.checkout-bill-row {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+.checkout-tip-row {
+    font-size: 1.2rem;
+    color: var(--success-green);
+}
+
+.checkout-total {
+    font-size: 3rem;
+    margin: 10px 0;
+}
+
+/* Grids */
+.tip-grid {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.cash-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+/* 💎 Unified Large Option Buttons (Tips & Cash) */
+.option-btn-large {
+    flex: 1;
+    padding: 20px;
+    font-size: 1.2rem;
+    font-weight: 800;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+}
+
+.option-btn-large:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+    background: var(--hover-bg);
+    border-color: var(--accent-blue);
+}
+
+.option-btn-large:active {
+    transform: scale(0.95);
+}
+
+.option-btn-large.active {
+    background: var(--success-green);
+    color: white;
+    border-color: var(--success-green);
+    box-shadow: 0 0 15px rgba(40, 167, 69, 0.4);
+}
+
+/* Centered Main Action Button */
+.btn-action-center {
+    width: 80%;
+    margin: 20px auto 0 auto;
+    display: flex;
+    padding: 15px;
+    justify-content: center;
+}
+
+/* --- Success Screen --- */
+.success-container {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.success-icon {
+    font-size: 6rem;
+    margin-bottom: 10px;
+    margin-top: 10px;
+    animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+@keyframes popIn {
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.success-title {
+    color: var(--success-green);
+    font-size: 2.2rem;
+    margin: 0 0 10px 0;
+    font-weight: 800;
+}
+
+.success-message {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.success-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    margin-top: 30px;
+    width: 100%;
+}
+
+.btn-success-action {
+    width: 80%;
+    padding: 18px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    justify-content: center;
+}
+
+/* Cancel Text Link */
+.btn-cancel-transaction {
+    margin-top: 20px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+    11. NOTIFICATIONS & TOASTS
+    ========================================================================== */
+.notification-toast {
+    position: fixed;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3000;
+    background: var(--glass-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    min-width: 320px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    color: var(--text-color);
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: 'Segoe UI', sans-serif;
+    animation: slideInDown 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.notification-success {
+    border-left: 6px solid var(--success-green);
+}
+
+.notification-success .notification-icon {
+    background: rgba(40, 167, 69, 0.15);
+    color: var(--success-green);
+}
+
+.notification-error {
+    border-left: 6px solid var(--danger-red);
+}
+
+.notification-error .notification-icon {
+    background: rgba(220, 53, 69, 0.15);
+    color: var(--danger-red);
+}
+
+.notification-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+/* ==========================================================================
+    12. LOGIN SCREEN
+    ========================================================================== */
+.login-layout {
+    align-items: center;
+    justify-content: center;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 350px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.login-title {
+    text-align: center;
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--text-color);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.input-login {
+    font-size: 1.2rem;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+/* ==========================================================================
+    13. ADMIN DASHBOARD SPECIFICS
+    ========================================================================== */
+.admin-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    overflow: hidden;
+    margin-top: 0;
+}
+
+.admin-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+    padding-bottom: 20px;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    align-items: stretch;
+}
+
+/* 📦 Transaction Container Box */
+.transaction-container-box {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    /* Initial summary height */
+    height: 450px;
+    overflow: hidden;
+    position: relative;
+    background: var(--pill-bg) !important;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+
+    /* 💨 Smooth Growth Animation */
+    transition:
+        height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s ease,
+        border-color 0.3s ease;
+}
+
+/* State when "View All" is active */
+.transaction-container-box.is-expanded {
+    height: 800px;
+}
+
+/* ✨ Hover Glow Effect */
+.transaction-container-box:hover {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 25px rgba(96, 165, 250, 0.2);
+}
+
+/* 🚀 Header Spacing: Pushed down 28px to clear rounded corners */
+.transaction-container-box .p-20 {
+    padding: 28px 25px 15px 25px;
+}
+
+/* 📜 Styled Scrollable Area */
+.transaction-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 15px;
+    margin-bottom: 5px;
+}
+
+/* 💎 Custom Scrollbar for Transactions */
+.transaction-scroll-area::-webkit-scrollbar {
+    width: 6px;
+}
+
+.transaction-scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.transaction-scroll-area::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 10px;
+}
+
+.transaction-scroll-area::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-blue);
+}
+
+/* 💎 Data Table & Dark Sticky Header */
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: transparent;
+}
+
+.data-table th {
+    /* Darker glass for readability on scroll */
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    text-align: left;
+    padding: 20px 15px;
+    border-bottom: 2px solid var(--glass-border);
+    color: #ffffff;
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1.5px;
+}
+
+[data-theme="light"] .data-table th {
+    background: rgba(255, 255, 255, 0.85);
+    color: var(--text-color);
+}
+
+.data-table td {
+    padding: 16px 15px;
+    border-bottom: 1px solid var(--glass-border);
+    transition: all 0.2s ease;
+}
+
+.clickable-row:hover td {
+    background: var(--hover-bg) !important;
+    color: var(--accent-blue);
+}
+
+/* 🔍 Premium View Toggle Footer */
+.transaction-footer-bar {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0 0 var(--radius) var(--radius);
+    border-top: 1px solid var(--glass-border);
+    margin-top: auto;
+    z-index: 20;
+}
+
+.btn-view-toggle {
+    background: transparent;
+    border: 1px solid var(--accent-blue);
+    color: var(--accent-blue);
+    padding: 10px 30px;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.btn-view-toggle:hover {
+    background: var(--accent-blue);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(96, 165, 250, 0.4);
+}
+
+/* --- Admin Toolbar & Stats --- */
+.admin-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.input-search-bar {
+    flex: 1;
+    min-width: 200px;
+    border-radius: 50px;
+    padding-left: 20px;
+}
+
+.input-filter {
+    width: auto;
+    padding: 0 20px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    border-radius: 50px;
+    cursor: pointer;
+    background-color: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    font-weight: bold;
+    transition: all 0.2s ease;
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: center;
+}
+
+.input-filter:hover,
+.input-filter:focus {
+    background-color: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+}
+
+.stats-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.stats-box {
+    flex: 1;
+    text-align: center;
+    padding: 15px;
+    border-right: 1px solid var(--glass-border);
+    min-width: 120px;
+}
+
+.stats-box:last-child {
+    border-right: none;
+}
+
+.stats-title {
+    margin: 0 0 10px 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.stats-value {
+    font-size: 2rem;
+    font-weight: 800;
+}
+
+.btn-reset-history {
+    flex: 0 0 100px;
+}
+
+/* 🖨️ Print Button styled exactly like Filters */
+.btn-print-pill {
+    padding: 0 20px;
+    /* Changed top/bottom padding to 0 */
+    height: 45px;
+    /* Fixed height to match dropdowns */
+    border-radius: 50px;
+    font-weight: bold;
+    font-size: 1rem;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+
+    /* Colors */
+    background: rgba(111, 66, 193, 0.15);
+    border: 1px solid #6f42c1;
+    color: #d6bbfb;
+}
+
+/* Hover State */
+.btn-print-pill:hover {
+    background: #6f42c1;
+    /* Solid purple on hover */
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(111, 66, 193, 0.4);
+}
+
+.btn-print-pill:active {
+    transform: scale(0.95);
+}
+
+.analytics-toggle {
+    background: var(--pill-bg);
+    backdrop-filter: blur(10px);
+    padding: 15px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+}
+
+.admin-card {
+    background: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    padding: 20px;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s;
+}
+
+.admin-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
 @keyframes slideDown {
     from {
         opacity: 0;
@@ -304,7 +1931,6 @@ button:active {
     to {
         opacity: 1;
         max-height: 500px;
-        /* Big enough to fit the chart */
         transform: translateY(0);
     }
 }
@@ -312,70 +1938,575 @@ button:active {
 .chart-slide-open {
     animation: slideDown 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
     overflow: hidden;
-    /* Hides content while it slides down */
 }
 
-/* The "Hover Pop" Effect for Graph Bars */
-/* Recharts uses 'path' elements for the bars. We target them here. */
-.recharts-surface path.recharts-rectangle {
-    transition: all 0.2s ease;
-    /* Smooth transition */
+/* Tables */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.data-table th,
+.data-table td {
+    text-align: left;
+    padding: 15px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.data-table th {
+    color: var(--text-muted);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.sortable-th {
     cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
 }
 
-.recharts-surface path.recharts-rectangle:hover {
-    filter: brightness(1.3);
-    /* Make it 30% brighter */
-    opacity: 0.9;
-    transform-origin: center bottom;
-    /* Anchor the scale to the bottom */
+.sortable-th:hover {
+    background: var(--hover-bg);
 }
 
-/* The Analytics Toggle Button */
-.analytics-toggle {
-    background: #333;
-    padding: 15px 20px;
+.clickable-row {
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.clickable-row:hover {
+    background: var(--glass-item);
+}
+
+/* Badges */
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-admin {
+    background: var(--danger-red);
+    color: white;
+}
+
+.badge-manager {
+    background: var(--warning-gold);
+    color: black;
+}
+
+.badge-bartender {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.badge-method {
+    background: #6610f2;
+    color: white;
+}
+
+.badge-pay {
+    background: var(--success-green);
+    color: white;
+}
+
+/* Forms */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.day-bubble {
+    padding: 8px 12px;
+    border-radius: 20px;
+    background: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.day-bubble.selected {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--glass-item);
+    padding: 12px;
     border-radius: 8px;
+    border: 1px solid var(--glass-border);
     cursor: pointer;
+}
+
+.receipt-items-container {
+    border-top: 1px dashed var(--glass-border);
+    border-bottom: 1px dashed var(--glass-border);
+    padding: 10px 0;
+}
+
+/* ==========================================================================
+    14. CHART & ANALYTICS STYLES
+    ========================================================================== */
+
+/* The Container for the Graph */
+.chart-card {
+    background: var(--pill-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    height: 350px;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.chart-card:hover {
+    box-shadow: var(--shadow-lg);
+    border-color: var(--accent-blue);
+}
+
+.chart-title {
+    text-align: center;
+    color: var(--text-muted);
+    margin: 0 0 15px 0;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+}
+
+.chart-empty {
+    height: 150px;
+    width: 100%;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-style: italic;
+    border: 1px dashed var(--glass-border);
+    border-radius: 12px;
+}
+
+/* --- Custom Tooltip (Hover Popup) --- */
+.chart-tooltip {
+    background-color: var(--dropdown-bg);
+    border: 1px solid var(--glass-border);
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    min-width: 150px;
+}
+
+.tooltip-label {
+    margin: 0 0 5px 0;
+    font-weight: 800;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 5px;
+}
+
+.tooltip-value {
+    margin: 0;
+    color: var(--accent-blue);
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+/* ==========================================================================
+    15. VOID MODAL STYLES (Cleaned & Updated)
+    ========================================================================== */
+.void-item-name {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-color);
+    margin-bottom: 5px;
+}
+
+.void-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+/* 💎 Void Reason Buttons */
+.btn-void-reason {
+    padding: 18px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 800;
+    text-align: left;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    background: var(--glass-item);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border: 1px solid #444;
-    margin-bottom: 10px;
-    transition: all 0.2s ease;
-    /* Smooth animation */
 }
 
-/* The Analytics Toggle Button */
-.analytics-toggle {
-    background: #333;
-    padding: 15px 20px;
-    border-radius: 8px;
-    cursor: pointer;
+.btn-void-reason:hover {
+    transform: translateX(5px);
+    background: var(--hover-bg);
+    color: var(--text-color);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Specific Theme Colors on Hover */
+.reason-waste:hover {
+    border-color: var(--danger-red);
+    color: var(--danger-red);
+}
+
+.reason-error:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.reason-manager:hover {
+    border-color: var(--warning-gold);
+    color: var(--warning-gold);
+}
+
+/* Manager PIN Section */
+.pin-section {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    border-radius: 16px;
+    margin-top: 15px;
+    border: 1px dashed var(--glass-border);
+    text-align: center;
+    animation: slideDown 0.3s ease;
+}
+
+/* ==========================================================================
+    16. ANIMATIONS 
+    ========================================================================== */
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-8px);
+    }
+
+    50% {
+        transform: translateX(8px);
+    }
+
+    75% {
+        transform: translateX(-8px);
+    }
+}
+
+.input-shake {
+    animation: shake 0.4s cubic-bezier(.36, .07, .19, .97) both;
+    border-color: var(--danger-red) !important;
+    box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.25) !important;
+}
+
+.login-card-shake {
+    animation: shake 0.4s cubic-bezier(.36, .07, .19, .97) both;
+    border-color: var(--danger-red) !important;
+}
+
+/* ==========================================================================
+    17. LOGIN PIN PAD & UI
+    ========================================================================== */
+.login-field-group {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid #444;
-    margin-bottom: 10px;
-    transition: all 0.2s ease;
-    /* Smooth animation */
+    flex-direction: column;
+    gap: 25px;
+    margin-bottom: 15px;
 }
 
-/* What happens when you hover */
-.analytics-toggle:hover {
-    background: #444;
-    /* Lighter background */
-    border-color: #666;
-    /* Lighter border */
-    transform: translateY(-2px);
-    /* Lifts up slightly */
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    /* Adds a shadow */
+.pin-input-wrapper {
+    position: relative;
+    width: 100%;
 }
 
-/* Make the arrow animate */
-.analytics-toggle:hover span:last-child {
-    transform: scale(1.2);
-    /* Makes the arrow grow */
-    transition: transform 0.2s;
+/* Eye Icon Button */
+.btn-show-pin {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    color: var(--text-color);
+    z-index: 10;
+}
+
+.btn-show-pin:hover {
+    opacity: 1;
+}
+
+/* Pin Pad Layout */
+.login-pin-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+    width: 100%;
+}
+
+.btn-pin {
+    height: 70px;
+    font-size: 1.5rem;
+    border-radius: 16px;
+    background: var(--glass-item);
+}
+
+.btn-pin:hover {
+    background: var(--hover-bg);
+}
+
+.btn-pin.btn-clear {
+    color: var(--danger-red);
+}
+
+.btn-pin.btn-go {
+    background: var(--success-green);
+    color: white;
+}
+
+/* Mobile Media Queries (Last for Priority) */
+@media (max-width: 768px) {
+    .stats-container {
+        flex-direction: column;
+    }
+
+    .stats-box {
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .admin-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pos-content-wrapper {
+        flex-direction: column;
+    }
+
+    .ticket-panel,
+    .menu-panel {
+        width: 100%;
+        height: 50%;
+    }
+}
+
+/* ==========================================================================
+    18. PRINT REPORT STYLES (The "Nuclear" Multi-Page Fix)
+    ========================================================================== */
+.print-only-report {
+    display: none;
+}
+
+@media print {
+
+    /* 1. Page Setup */
+    @page {
+        margin: 10mm 10mm 10mm 10mm;
+        /* Moderate margins */
+        size: auto;
+    }
+
+    /* 2. FORCE RESET: Turn the entire app into a plain white document */
+    html,
+    body,
+    #root {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        display: block !important;
+        position: static !important;
+        background: white !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* 3. NEUTRALIZE CONTAINERS: Remove all "App" styling constraints */
+    .pos-container,
+    .admin-panel,
+    .admin-scroll-area,
+    .pos-content-wrapper,
+    .glass-panel {
+        position: static !important;
+        overflow: visible !important;
+        height: auto !important;
+        width: auto !important;
+        display: block !important;
+        /* Kills Flexbox */
+        transform: none !important;
+        /* Fixes coordinate issues */
+        backdrop-filter: none !important;
+        /* Fixes rendering glitches */
+        box-shadow: none !important;
+        border: none !important;
+        background: transparent !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* 4. Hide EVERYTHING that isn't the report */
+    /* We use visibility: hidden for parents to keep flow, but display: none for UI elements */
+    .top-bar-container,
+    .category-tabs,
+    .analytics-toggle,
+    .admin-toolbar,
+    .transaction-footer-bar,
+    .stats-container,
+    .transaction-container-box,
+    button,
+    .glass-panel::after,
+    .btn-print-pill,
+    .modal-overlay,
+    .chart-slide-open {
+        display: none !important;
+    }
+
+    /* 5. The Report Container */
+    .print-only-report {
+        display: block !important;
+        width: 100% !important;
+        background: white !important;
+        color: black !important;
+        padding: 20px 0 !important;
+        /* Adds breathing room */
+    }
+
+    /* 6. Header Layout */
+    .print-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 2px solid #000;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+    }
+
+    .print-header-left h1 {
+        margin: 0;
+        font-size: 24px;
+        text-transform: uppercase;
+    }
+
+    .print-header-left p {
+        margin: 5px 0 0 0;
+        color: #555;
+        font-size: 14px;
+    }
+
+    .print-total-box {
+        background: #f4f4f4 !important;
+        border: 1px solid #999;
+        padding: 8px 12px;
+        border-radius: 4px;
+        text-align: right;
+        -webkit-print-color-adjust: exact;
+        /* Forces background color to print */
+        print-color-adjust: exact;
+    }
+
+    .print-total-row {
+        display: block;
+        font-size: 12px;
+        margin-bottom: 2px;
+    }
+
+    .print-big-total {
+        display: block;
+        font-size: 16px;
+        font-weight: 900;
+        border-top: 1px solid #aaa;
+        margin-top: 4px;
+        padding-top: 4px;
+    }
+
+    /* 7. The Table - Multi-Page Logic */
+    .data-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 11px;
+        /* Slightly smaller text prevents awkward wrapping */
+        table-layout: fixed;
+        /* Keeps columns stable */
+    }
+
+    .data-table thead {
+        display: table-header-group;
+        /* Repeats header on new pages */
+    }
+
+    .data-table tr {
+        break-inside: avoid;
+        /* Prevents splitting a row in half */
+        page-break-inside: avoid;
+        break-after: auto;
+    }
+
+    .data-table th {
+        background: #e0e0e0 !important;
+        border-bottom: 2px solid #000 !important;
+        padding: 6px !important;
+        text-align: left;
+        font-weight: bold;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .data-table td {
+        border-bottom: 1px solid #ccc !important;
+        padding: 6px !important;
+        color: black !important;
+        vertical-align: top;
+    }
+
+    /* Zebra Striping */
+    .data-table tr:nth-child(even) {
+        background-color: #f9f9f9 !important;
+        -webkit-print-color-adjust: exact;
+    }
+}
+
+/* 💰 Make totals stand out */
+.font-bold {
+    font-weight: 900 !important;
 }

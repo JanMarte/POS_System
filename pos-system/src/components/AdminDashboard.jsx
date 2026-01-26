@@ -1,102 +1,99 @@
 // src/components/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  getInventory,
-  addInventoryItem,
-  deleteInventoryItem,
-  updateInventoryItem,
-  getSales,
-  clearSales,
-  getUsers,
-  addUser,
-  updateUser,
-  deleteUser,
-  getHappyHours,
-  addHappyHour,
-  deleteHappyHour
+  getInventory, addInventoryItem, deleteInventoryItem, updateInventoryItem,
+  getSales, clearSales, getUsers, addUser, updateUser, deleteUser,
+  getHappyHours, addHappyHour, deleteHappyHour
 } from '../data/repository';
 import Notification from './Notification';
 import SalesChart from './SalesChart';
 import TopBar from './TopBar';
 import { printReceipt } from '../utils/receiptService';
 
+/**
+ * AdminDashboard Component
+ * The central management hub for the POS system.
+ */
 const AdminDashboard = ({ onBack, onLogout, user }) => {
+  // =========================================
+  // 1. DATA STATE
+  // =========================================
   const [activeTab, setActiveTab] = useState('sales');
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [users, setUsers] = useState([]);
   const [happyHours, setHappyHours] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // GLOBAL BUSY STATE
   const [isBusy, setIsBusy] = useState(false);
 
-  // SEARCH & FILTER STATE
+  // =========================================
+  // 2. FILTER & SORT STATE
+  // =========================================
   const [searchTerm, setSearchTerm] = useState('');
   const [inventoryFilter, setInventoryFilter] = useState('all');
-
-  // SALES FILTER & SORT STATE
   const [salesFilterMethod, setSalesFilterMethod] = useState('all');
   const [salesFilterEmployee, setSalesFilterEmployee] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
-  const [selectedSale, setSelectedSale] = useState(null);
 
-  // --- PERMISSIONS ---
+  // UI Toggles
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [showChart, setShowChart] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false); // 📦 NEW: Transaction expansion state
+
+  // =========================================
+  // 3. PERMISSIONS
+  // =========================================
   const isBartender = user && user.role === 'bartender';
   const canManageInventory = !isBartender;
   const canManageEmployees = !isBartender;
 
-  // Form State
-  const [modalType, setModalType] = useState('product'); // 'product' | 'employee' | 'happyHour'
+  // =========================================
+  // 4. FORM & MODAL STATE
+  // =========================================
+  const [modalType, setModalType] = useState('product');
   const [isFormOpen, setIsFormOpen] = useState(false);
-
-  // Product Form Data
-  const [newItem, setNewItem] = useState({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
-
-  // Employee Form Data
-  const [newUser, setNewUser] = useState({ name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false });
-
-  // Happy Hour Form Data
-  const [newRule, setNewRule] = useState({
-    name: '', start_time: '16:00', end_time: '19:00',
-    discount_amount: '', category: 'beer', days: []
-  });
-
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Chart & Notifications
-  const [showChart, setShowChart] = useState(false);
-  const [isStatsOpen, setIsStatsOpen] = useState(false);
-
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, message: '', onConfirm: null });
   const [notification, setNotification] = useState({ message: '', type: '' });
   const notify = (message, type = 'success') => setNotification({ message, type });
 
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, message: '', onConfirm: null });
+  // Data Templates
+  const emptyItem = { name: '', price: '', category: 'beer', tier: '', stock_count: '' };
+  const emptyUser = { name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false };
+  const emptyRule = { name: '', start_time: '16:00', end_time: '19:00', discount_amount: '', category: 'beer', days: [] };
+
+  const [newItem, setNewItem] = useState(emptyItem);
+  const [newUser, setNewUser] = useState(emptyUser);
+  const [newRule, setNewRule] = useState(emptyRule);
 
   const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+  // =========================================
+  // 5. INITIALIZATION
+  // =========================================
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       const promises = [getInventory(), getSales(), getHappyHours()];
-      if (canManageEmployees) {
-        promises.push(getUsers());
-      }
+      if (canManageEmployees) promises.push(getUsers());
 
       const results = await Promise.all(promises);
       setInventory(results[0]);
       setSales(results[1]);
       setHappyHours(results[2]);
-      if (canManageEmployees) {
-        setUsers(results[3]);
-      }
+      if (canManageEmployees) setUsers(results[3]);
+
       setLoading(false);
     };
     loadData();
   }, [canManageEmployees]);
 
-  // --- SALES FILTER LOGIC ---
+  // =========================================
+  // 6. LOGIC: FILTERING & SORTING
+  // =========================================
+
   const getFilteredSales = () => {
     let filtered = sales.filter(sale => {
       if (salesFilterMethod !== 'all' && sale.payment_method !== salesFilterMethod) return false;
@@ -106,51 +103,53 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
 
     if (sortConfig.key) {
       filtered.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
-
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
         if (['total', 'tip'].includes(sortConfig.key)) {
-          aValue = parseFloat(aValue || 0);
-          bValue = parseFloat(bValue || 0);
+          aVal = parseFloat(aVal || 0);
+          bVal = parseFloat(bVal || 0);
         }
         if (sortConfig.key === 'date') {
-          aValue = new Date(aValue).getTime();
-          bValue = new Date(bValue).getTime();
+          aVal = new Date(aVal).getTime();
+          bVal = new Date(bVal).getTime();
         }
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
     return filtered;
   };
 
+  // 📦 Logic: Determine display set based on "View More" toggle
+  const allFilteredSales = getFilteredSales();
+  const displayedSales = isExpanded ? allFilteredSales : allFilteredSales.slice(0, 20);
+
   const handleSort = (key) => {
     let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
     setSortConfig({ key, direction });
   };
 
   const uniqueEmployees = [...new Set(sales.map(s => s.employee_name || 'Unknown'))].filter(Boolean);
 
-  // --- INVENTORY LOGIC ---
   const filteredInventory = inventory.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
+    if (!item.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     const isTracked = item.stock_count !== null;
     const isSoldOut = !item.is_available || (isTracked && item.stock_count <= 0);
     const isLowStock = !isSoldOut && isTracked && item.stock_count < 10;
+
     if (inventoryFilter === 'low') return isLowStock;
     if (inventoryFilter === 'sold_out') return isSoldOut;
     return true;
   });
 
-  // --- ACTIONS ---
+  // =========================================
+  // 7. ACTIONS: CRUD & CONFIRMATION
+  // =========================================
+
   const handleDeleteRequest = (type, id) => {
-    const confirmDelete = async (action) => {
+    const confirmAction = async (action) => {
       setIsBusy(true);
       const success = await action();
       setIsBusy(false);
@@ -159,109 +158,44 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
       else notify("Error deleting", "error");
     };
 
+    let message = "Are you sure?";
+    let action = null;
+
     if (type === 'happyHour') {
       const rule = happyHours.find(r => r.id === id);
-      setConfirmModal({
-        isOpen: true,
-        message: `Delete Rule "${rule?.name}"?`,
-        onConfirm: () => confirmDelete(async () => {
-          const ok = await deleteHappyHour(id);
-          if (ok) setHappyHours(happyHours.filter(h => h.id !== id));
-          return ok;
-        })
-      });
-      return;
-    }
-
-    if (type === 'history') {
-      setConfirmModal({
-        isOpen: true,
-        message: 'Are you sure you want to WIPE ALL sales history?',
-        onConfirm: async () => {
-          setIsBusy(true);
-          await clearSales();
-          setSales([]);
-          notify("Sales History Reset", "success");
-          setConfirmModal({ isOpen: false, message: '', onConfirm: null });
-          setIsBusy(false);
-        }
-      });
+      message = `Delete Rule "${rule?.name}"?`;
+      action = async () => { const ok = await deleteHappyHour(id); if (ok) setHappyHours(prev => prev.filter(h => h.id !== id)); return ok; };
+    } else if (type === 'history') {
+      message = 'Are you sure you want to WIPE ALL sales history?';
+      action = async () => { await clearSales(); setSales([]); return true; };
     } else if (type === 'product') {
       const item = inventory.find(i => i.id === id);
-      setConfirmModal({
-        isOpen: true,
-        message: `Delete Product "${item?.name}"?`,
-        onConfirm: async () => {
-          setIsBusy(true);
-          const success = await deleteInventoryItem(id);
-          if (success) {
-            setInventory(inventory.filter(i => i.id !== id));
-            notify("Product Deleted");
-          } else {
-            notify("Cannot delete: Item in Open Tab!", "error");
-          }
-          setConfirmModal({ isOpen: false, message: '', onConfirm: null });
-          setIsBusy(false);
-        }
-      });
+      message = `Delete Product "${item?.name}"?`;
+      action = async () => { const success = await deleteInventoryItem(id); if (success) setInventory(prev => prev.filter(i => i.id !== id)); return success; };
     } else if (type === 'user') {
       const u = users.find(x => x.id === id);
-      setConfirmModal({
-        isOpen: true,
-        message: `Delete Employee "${u?.name}"?`,
-        onConfirm: async () => {
-          setIsBusy(true);
-          const success = await deleteUser(id);
-          if (success) {
-            setUsers(users.filter(x => x.id !== id));
-            notify("Employee Deleted");
-          } else {
-            notify("Could not delete employee", "error");
-          }
-          setConfirmModal({ isOpen: false, message: '', onConfirm: null });
-          setIsBusy(false);
-        }
-      });
+      message = `Delete Employee "${u?.name}"?`;
+      action = async () => { const success = await deleteUser(id); if (success) setUsers(prev => prev.filter(x => x.id !== id)); return success; };
     }
+
+    setConfirmModal({ isOpen: true, message, onConfirm: () => confirmAction(action) });
   };
 
-  // --- MODALS ---
+
   const openModal = (type, data = null) => {
     setModalType(type);
     setEditingId(data?.id || null);
     setIsFormOpen(true);
-    if (type === 'product') {
-      if (data) {
-        setNewItem({
-          name: data.name, price: data.price, category: data.category,
-          tier: data.tier || '', stock_count: data.stock_count || ''
-        });
-      } else {
-        setNewItem({ name: '', price: '', category: 'beer', tier: '', stock_count: '' });
-      }
-    }
-    if (type === 'employee') {
-      if (data) {
-        setNewUser({
-          name: data.name, pin: '', confirmPin: '', role: data.role,
-          can_discount: data.can_discount || false
-        });
-      } else {
-        setNewUser({ name: '', pin: '', confirmPin: '', role: 'bartender', can_discount: false });
-      }
-    }
-    if (type === 'happyHour') {
-      setNewRule({ name: '', start_time: '16:00', end_time: '19:00', discount_amount: '', category: 'beer', days: [] });
-    }
+    if (type === 'product') setNewItem(data ? { ...data, tier: data.tier || '', stock_count: data.stock_count || '' } : emptyItem);
+    if (type === 'employee') setNewUser(data ? { ...data, pin: '', confirmPin: '' } : emptyUser);
+    if (type === 'happyHour') setNewRule(emptyRule);
   };
 
-  const openProductModal = (product = null) => openModal('product', product);
-  const openUserModal = (userToEdit = null) => openModal('employee', userToEdit);
+  // Helper wrappers for TopBar buttons
+  const openProductModal = (data = null) => openModal('product', data);
+  const openUserModal = (data = null) => openModal('employee', data);
 
-  const closeModal = () => {
-    setIsFormOpen(false);
-    setEditingId(null);
-  };
+  const closeModal = () => { setIsFormOpen(false); setEditingId(null); };
 
   const toggleDay = (day) => {
     setNewRule(prev => {
@@ -270,37 +204,18 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
     });
   };
 
-  // --- SAVE HANDLERS ---
   const handleSaveProduct = async () => {
     if (!newItem.name || !newItem.price) return notify("Name and Price required", "error");
     setIsSubmitting(true);
-
     const stockNumber = newItem.stock_count === '' ? null : parseInt(newItem.stock_count);
-    const shouldBeAvailable = stockNumber === null || stockNumber > 0;
-
-    const payload = {
-      name: newItem.name,
-      price: parseFloat(newItem.price),
-      category: newItem.category,
-      tier: newItem.tier || null,
-      stock_count: stockNumber,
-      is_available: shouldBeAvailable
-    };
+    const payload = { name: newItem.name, price: parseFloat(newItem.price), category: newItem.category, tier: newItem.tier || null, stock_count: stockNumber, is_available: stockNumber === null || stockNumber > 0 };
 
     if (editingId) {
       const updated = await updateInventoryItem(editingId, payload);
-      if (updated) {
-        setInventory(inventory.map(i => i.id === editingId ? updated[0] : i));
-        notify("Product Updated");
-        closeModal();
-      }
+      if (updated) { setInventory(prev => prev.map(i => i.id === editingId ? updated[0] : i)); notify("Product Updated"); closeModal(); }
     } else {
       const added = await addInventoryItem(payload);
-      if (added) {
-        setInventory([...inventory, added[0]]);
-        notify("Product Added");
-        closeModal();
-      }
+      if (added) { setInventory(prev => [...prev, added[0]]); notify("Product Added"); closeModal(); }
     }
     setIsSubmitting(false);
   };
@@ -312,46 +227,31 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
     if (newUser.pin && newUser.pin.length !== 4) return notify("PIN must be 4 digits", "error");
 
     setIsSubmitting(true);
-
-    const payload = {
-      name: newUser.name,
-      role: newUser.role,
-      can_discount: newUser.can_discount
-    };
-
+    const payload = { name: newUser.name, role: newUser.role, can_discount: newUser.can_discount };
     if (newUser.pin) payload.pin = newUser.pin;
 
     if (editingId) {
       const updated = await updateUser(editingId, payload);
-      if (updated) {
-        setUsers(users.map(u => u.id === editingId ? updated[0] : u));
-        notify("Employee Updated");
-        closeModal();
-      }
+      if (updated) { setUsers(prev => prev.map(u => u.id === editingId ? updated[0] : u)); notify("Employee Updated"); closeModal(); }
     } else {
       const added = await addUser(payload);
-      if (added) {
-        setUsers([...users, added[0]]);
-        notify("Employee Added");
-        closeModal();
-      }
+      if (added) { setUsers(prev => [...prev, added[0]]); notify("Employee Added"); closeModal(); }
     }
     setIsSubmitting(false);
+  };
+
+  const handlePrintReport = () => {
+    window.print();
   };
 
   const handleSaveHappyHour = async () => {
     if (!newRule.name || !newRule.discount_amount || newRule.days.length === 0) return notify("Missing fields", "error");
     setIsSubmitting(true);
     const added = await addHappyHour(newRule);
-    if (added) {
-      setHappyHours([...happyHours, added[0]]);
-      notify("Happy Hour Added!");
-      closeModal();
-    }
+    if (added) { setHappyHours(prev => [...prev, added[0]]); notify("Happy Hour Added!"); closeModal(); }
     setIsSubmitting(false);
   };
 
-  // Stats Logic
   const stats = sales.reduce((acc, order) => {
     const amount = parseFloat(order.total);
     const tip = parseFloat(order.tip || 0);
@@ -364,114 +264,58 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
   }, { total: 0, tips: 0, cash: 0, card: 0 });
 
   return (
-    <div className="dashboard-container">
-      <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ message: '', type: '' })} />
-      <style>{`
-        .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; align-items: stretch; }
-        .stats-grid { display: flex; gap: 20px; align-items: flex-start; width: 100%; }
-        .stats-mobile-toggle { display: none; }
-        .user-card { background: #333; padding: 15px; border-radius: 8px; border: 1px solid #444; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .hh-card { background: #2a2a2a; border: 1px solid #555; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; flex-direction: column; justify-content: space-between; }
-        .day-bubble { padding: 5px 10px; border-radius: 15px; background: #444; color: #aaa; cursor: pointer; border: 1px solid transparent; font-size: 0.8rem; }
-        .day-bubble.selected { background: #007bff; color: white; border-color: #0056b3; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
-        .badge-admin { background: #d9534f; color: white; }
-        .badge-manager { background: #f0ad4e; color: black; }
-        .badge-bartender { background: #0275d8; color: white; }
-        .sortable-th { cursor: pointer; user-select: none; transition: background 0.2s; }
-        .sortable-th:hover { background: #444; }
-        .sort-icon { font-size: 0.8rem; margin-left: 5px; color: #888; }
-        .clickable-row { cursor: pointer; transition: background 0.1s; }
-        .clickable-row:hover { background: #3a3a3a; }
-        button:disabled { opacity: 0.6; cursor: not-allowed !important; filter: grayscale(0.5); }
-        .animated-dots::after { content: "."; animation: dots 1.5s steps(1, end) infinite; display: inline-block; width: 0px; text-align: left; }
-        @keyframes dots { 0%, 20% { content: "."; } 40% { content: ".."; } 60%, 100% { content: "..."; } }
-        @media (max-width: 768px) {
-          .stats-card-container { display: ${isStatsOpen ? 'block' : 'none'} !important; margin-top: 10px; }
-          .stats-grid { flex-direction: column; gap: 10px; }
-          .stats-mobile-toggle { display: flex; justify-content: space-between; align-items: center; background: #333; padding: 15px; border-radius: 8px; border: 1px solid #444; color: white; font-weight: bold; cursor: pointer; margin-bottom: 0px; }
-          .stats-box { width: 100%; border-right: none !important; border-bottom: 1px solid #444; padding-bottom: 15px; margin-bottom: 5px; }
-          .stats-reset-btn { width: 100%; margin-left: 0 !important; margin-top: 10px; }
-          .analytics-toggle { margin-top: 15px; }
-        }
-      `}</style>
+    <div className="pos-container">
 
-      {/* TRANSACTION DETAILS MODAL */}
+      <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ message: '', type: '' })} />
+
+      {/* --- MODALS SECTION --- */}
+
+      {/* 1. Transaction Receipt Modal */}
       {selectedSale && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ width: '400px', border: '1px solid #666', background: '#222' }}>
-            <h2 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginTop: 0 }}>🧾 Transaction Details</h2>
-
-            <div style={{ marginBottom: '15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                <span style={{ color: '#aaa' }}>Date:</span>
-                <span>{new Date(selectedSale.date).toLocaleString()}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                <span style={{ color: '#aaa' }}>Employee:</span>
-                <span style={{ fontWeight: 'bold' }}>{selectedSale.employee_name || 'Unknown'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                <span style={{ color: '#aaa' }}>Method:</span>
-                <span style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>{selectedSale.payment_method}</span>
-              </div>
+          <div className="modal-content modal-width-sm">
+            <h2 className="modal-title-nospace">🧾 Transaction Details</h2>
+            <div className="mb-15">
+              <div className="totals-row"><span>Date:</span><span>{new Date(selectedSale.date).toLocaleString()}</span></div>
+              <div className="totals-row"><span>Employee:</span><span className="font-bold">{selectedSale.employee_name || 'Unknown'}</span></div>
+              <div className="totals-row"><span>Method:</span><span className="badge badge-method">{selectedSale.payment_method}</span></div>
             </div>
 
-            <div style={{ maxHeight: '200px', overflowY: 'auto', borderTop: '1px dashed #444', borderBottom: '1px dashed #444', padding: '10px 0' }}>
+            <div className="receipt-items-container cart-list-container">
               {selectedSale.items && selectedSale.items.map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <div key={i} className="totals-row mb-5">
                   <span>{item.quantity > 1 ? `${item.quantity}x ` : ''}{item.name}</span>
                   <span>${(item.price * (item.quantity || 1)).toFixed(2)}</span>
                 </div>
               ))}
             </div>
 
-            <div style={{ marginTop: '15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                <span>Subtotal (approx):</span>
-                <span>${parseFloat(selectedSale.total).toFixed(2)}</span>
-              </div>
-              {selectedSale.discount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', color: '#ffc107' }}>
-                  <span>Discount:</span>
-                  <span>-${parseFloat(selectedSale.discount).toFixed(2)}</span>
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', color: '#17a2b8' }}>
-                <span>Tip:</span>
-                <span>+${parseFloat(selectedSale.tip || 0).toFixed(2)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 'bold', borderTop: '1px solid #444', paddingTop: '10px' }}>
-                <span>Total:</span>
-                <span style={{ color: '#28a745' }}>${(parseFloat(selectedSale.total) + parseFloat(selectedSale.tip || 0)).toFixed(2)}</span>
+            <div className="mt-10">
+              <div className="totals-row"><span>Subtotal:</span><span>${parseFloat(selectedSale.total).toFixed(2)}</span></div>
+              {selectedSale.discount > 0 && <div className="totals-row text-gold"><span>Discount:</span><span>-${parseFloat(selectedSale.discount).toFixed(2)}</span></div>}
+              <div className="totals-row text-blue"><span>Tip:</span><span>+${parseFloat(selectedSale.tip || 0).toFixed(2)}</span></div>
+              <div className="totals-row mt-10 font-bold text-lg">
+                <span>Total:</span><span className="text-green">${(parseFloat(selectedSale.total) + parseFloat(selectedSale.tip || 0)).toFixed(2)}</span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button
-                onClick={() => printReceipt(selectedSale)}
-                style={{ flex: 1, padding: '12px', background: '#fff', color: '#000', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
-                🖨️ Print
-              </button>
-              <button
-                onClick={() => setSelectedSale(null)}
-                style={{ flex: 1, padding: '12px', background: '#444', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-                Close
-              </button>
+            <div className="flex gap-10 mt-20">
+              <button onClick={() => printReceipt(selectedSale)} className="btn-glass btn-receipt-print">🖨️ Print</button>
+              <button onClick={() => setSelectedSale(null)} className="btn-glass btn-secondary">Close</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* CONFIRM DELETE MODAL */}
+      {/* 2. Confirmation Modal */}
       {confirmModal.isOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ width: '400px', textAlign: 'center', border: '1px solid #444' }}>
-            <h2 style={{ color: '#ff4d4f', marginTop: 0 }}>⚠️ Confirm Action</h2>
-            <p style={{ fontSize: '1.2rem', margin: '20px 0', fontWeight: 'bold' }}>{confirmModal.message}</p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button disabled={isBusy} onClick={() => setConfirmModal({ isOpen: false, message: '', onConfirm: null })} style={{ padding: '10px 20px', background: '#444', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>Cancel</button>
-              <button disabled={isBusy} onClick={confirmModal.onConfirm} style={{ padding: '10px 20px', background: '#d9534f', border: 'none', color: 'white', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+          <div className="modal-content modal-width-sm text-center">
+            <h2 className="text-danger mt-auto">⚠️ Confirm Action</h2>
+            <p className="mb-20 font-bold text-lg">{confirmModal.message}</p>
+            <div className="flex gap-10 justify-center">
+              <button disabled={isBusy} onClick={() => setConfirmModal({ isOpen: false, message: '', onConfirm: null })} className="btn-glass btn-secondary">Cancel</button>
+              <button disabled={isBusy} onClick={confirmModal.onConfirm} className="btn-glass btn-danger">
                 {isBusy ? <span className="animated-dots"></span> : 'Yes, Do It'}
               </button>
             </div>
@@ -479,135 +323,193 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* DYNAMIC ADD/EDIT MODAL */}
+      {/* 3. Add/Edit Form Modal (Unified) */}
       {isFormOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ width: '500px', border: '1px solid #555' }}>
-            <h2 style={{ marginTop: 0 }}>
-              {editingId ? 'Edit' : 'Add'} {modalType === 'happyHour' ? 'Rule' : modalType}
-            </h2>
+          <div className="modal-content" style={{ width: '550px' }}>
 
-            {/* Product Form */}
+            {/* Header */}
+            <div className="modal-header">
+              <h2 className="no-margin">
+                {editingId ? '✏️ Edit' : '➕ Add'} {modalType === 'happyHour' ? 'Rule' : modalType.charAt(0).toUpperCase() + modalType.slice(1)}
+              </h2>
+              <button onClick={closeModal} className="modal-close-btn">&times;</button>
+            </div>
+
+            {/* PRODUCT FORM */}
             {modalType === 'product' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <input className="input-dark" placeholder="Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} style={{ margin: 0 }} />
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input className="input-dark" placeholder="Price" type="number" style={{ flex: 1, margin: 0 }} value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
-                  <input className="input-dark" placeholder="Stock (Optional)" type="number" style={{ flex: 1, margin: 0 }} value={newItem.stock_count} onChange={e => setNewItem({ ...newItem, stock_count: e.target.value })} />
+              <div className="modal-form-grid">
+                <div className="form-group full-width">
+                  <label className="modal-label">Product Name</label>
+                  <input className="input-glass w-100" placeholder="e.g. Bud Light" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <select className="input-dark" value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })} style={{ flex: 1, margin: 0 }}>
+
+                <div className="form-group">
+                  <label className="modal-label">Price ($)</label>
+                  <input className="input-glass w-100" placeholder="0.00" type="number" step="0.01" value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
+                </div>
+
+                <div className="form-group">
+                  <label className="modal-label">Stock (Optional)</label>
+                  <input className="input-glass w-100" placeholder="∞" type="number" value={newItem.stock_count} onChange={e => setNewItem({ ...newItem, stock_count: e.target.value })} />
+                </div>
+
+                <div className="form-group">
+                  <label className="modal-label">Category</label>
+                  <select className="input-glass w-100" value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })}>
                     <option value="beer">Beer</option>
                     <option value="seltzer">Seltzer</option>
                     <option value="liquor">Liquor</option>
                     <option value="pop">Pop</option>
+                    <option value="food">Food</option>
+                    <option value="merch">Merch</option>
                   </select>
-                  <select className="input-dark" value={newItem.tier} onChange={e => setNewItem({ ...newItem, tier: e.target.value })} style={{ flex: 1, margin: 0 }}>
+                </div>
+
+                <div className="form-group">
+                  <label className="modal-label">Tier</label>
+                  <select className="input-glass w-100" value={newItem.tier} onChange={e => setNewItem({ ...newItem, tier: e.target.value })}>
                     <option value="">No Tier</option>
                     <option value="well">Well</option>
                     <option value="call">Call</option>
                     <option value="premium">Premium</option>
                   </select>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button
-                    onClick={handleSaveProduct}
-                    disabled={isSubmitting}
-                    className="btn-primary"
-                    style={{ flex: 1, padding: '12px', fontSize: '1.1rem', display: 'flex', justifyContent: 'center' }}
-                  >
+
+                {/* Footer Actions */}
+                <div className="modal-actions full-width">
+                  <button onClick={closeModal} disabled={isSubmitting} className="btn-glass btn-secondary">Cancel</button>
+                  <button onClick={handleSaveProduct} disabled={isSubmitting} className="btn-glass btn-save" style={{ flex: 2, marginLeft: '10px' }}>
                     {isSubmitting ? <span className="animated-dots">Saving</span> : 'Save Product'}
                   </button>
-                  <button onClick={closeModal} disabled={isSubmitting} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#444', fontSize: '1.1rem' }}>Cancel</button>
                 </div>
               </div>
             )}
 
-            {/* Employee Form */}
+            {/* EMPLOYEE FORM */}
             {modalType === 'employee' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <input className="input-dark" placeholder="Employee Name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} />
-                <select className="input-dark" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
-                  <option value="bartender">Bartender</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
-                </select>
-
-                {/* Checkbox for Discount Permission */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#333', padding: '10px', borderRadius: '5px', border: '1px solid #444' }}>
+              <form
+                className="modal-form-grid"
+                onSubmit={(e) => e.preventDefault()} /* Prevents page reload on Enter */
+                autoComplete="off"
+              >
+                <div className="form-group full-width">
+                  <label className="modal-label">Employee Name</label>
                   <input
-                    type="checkbox"
-                    id="discount_check"
-                    checked={newUser.can_discount}
-                    onChange={e => setNewUser({ ...newUser, can_discount: e.target.checked })}
-                    style={{ width: '20px', height: '20px' }}
+                    className="input-glass w-100"
+                    placeholder="e.g. John Doe"
+                    value={newUser.name}
+                    onChange={e => setNewUser({ ...newUser, name: e.target.value })}
+                    autoComplete="new-password" /* Trick to stop auto-filling */
                   />
-                  <label htmlFor="discount_check" style={{ color: '#fff', cursor: 'pointer' }}>Allow Giving Discounts?</label>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input className="input-dark" placeholder="New PIN" maxLength="4" type="password" value={newUser.pin} onChange={e => setNewUser({ ...newUser, pin: e.target.value })} style={{ flex: 1 }} />
-                  <input className="input-dark" placeholder="Confirm PIN" maxLength="4" type="password" value={newUser.confirmPin} onChange={e => setNewUser({ ...newUser, confirmPin: e.target.value })} style={{ flex: 1 }} />
+                <div className="form-group">
+                  <label className="modal-label">Role</label>
+                  <select className="input-glass w-100" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
+                    <option value="bartender">Bartender</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button
-                    onClick={handleSaveUser}
-                    disabled={isSubmitting}
-                    className="btn-primary"
-                    style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center' }}
+
+                <div className="form-group">
+                  <label className="modal-label">Permissions</label>
+                  <div
+                    className={`toggle-row ${newUser.can_discount ? 'toggle-active' : ''}`}
+                    onClick={() => setNewUser({ ...newUser, can_discount: !newUser.can_discount })}
+                    style={{ height: '46px' }}
                   >
+                    <span>{newUser.can_discount ? '✅' : '⛔'}</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Can Discount?</span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="modal-label">New PIN</label>
+                  <input
+                    className="input-glass w-100"
+                    placeholder="****"
+                    maxLength="4"
+                    type="password"
+                    value={newUser.pin}
+                    onChange={e => setNewUser({ ...newUser, pin: e.target.value })}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="modal-label">Confirm PIN</label>
+                  <input
+                    className="input-glass w-100"
+                    placeholder="****"
+                    maxLength="4"
+                    type="password"
+                    value={newUser.confirmPin}
+                    onChange={e => setNewUser({ ...newUser, confirmPin: e.target.value })}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div className="modal-actions full-width">
+                  <button type="button" onClick={closeModal} disabled={isSubmitting} className="btn-glass btn-secondary">Cancel</button>
+                  <button type="button" onClick={handleSaveUser} disabled={isSubmitting} className="btn-glass btn-save" style={{ flex: 2, marginLeft: '10px' }}>
                     {isSubmitting ? <span className="animated-dots">Saving</span> : 'Save Employee'}
                   </button>
-                  <button onClick={closeModal} disabled={isSubmitting} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#444' }}>Cancel</button>
                 </div>
-              </div>
+              </form>
             )}
 
-            {/* Happy Hour Form */}
+            {/* HAPPY HOUR FORM */}
             {modalType === 'happyHour' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <input className="input-dark" placeholder="Rule Name (e.g. Friday Beers)" value={newRule.name} onChange={e => setNewRule({ ...newRule, name: e.target.value })} />
-
-                <label style={{ color: '#aaa', fontSize: '0.9rem' }}>Active Days</label>
-                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                  {weekDays.map(day => (
-                    <div key={day} onClick={() => toggleDay(day)} className={`day-bubble ${newRule.days.includes(day) ? 'selected' : ''}`}>
-                      {day.substring(0, 3)}
-                    </div>
-                  ))}
+              <div className="modal-form-grid">
+                <div className="form-group full-width">
+                  <label className="modal-label">Rule Name</label>
+                  <input className="input-glass w-100" placeholder="e.g. Taco Tuesday" value={newRule.name} onChange={e => setNewRule({ ...newRule, name: e.target.value })} />
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>Start Time</label>
-                    <input type="time" className="input-dark" value={newRule.start_time} onChange={e => setNewRule({ ...newRule, start_time: e.target.value })} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>End Time</label>
-                    <input type="time" className="input-dark" value={newRule.end_time} onChange={e => setNewRule({ ...newRule, end_time: e.target.value })} />
+                <div className="form-group full-width">
+                  <label className="modal-label">Active Days</label>
+                  <div className="flex gap-5" style={{ flexWrap: 'wrap' }}>
+                    {weekDays.map(day => (
+                      <div key={day} onClick={() => toggleDay(day)} className={`day-bubble ${newRule.days.includes(day) ? 'selected' : ''}`}>
+                        {day.substring(0, 3)}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>Category</label>
-                    <select className="input-dark" value={newRule.category} onChange={e => setNewRule({ ...newRule, category: e.target.value })}>
-                      <option value="all">All Items</option>
-                      <option value="beer">Beer</option>
-                      <option value="liquor">Liquor</option>
-                      <option value="seltzer">Seltzer</option>
-                      <option value="pop">Pop</option>
-                    </select>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ color: '#aaa', fontSize: '0.8rem' }}>Discount ($)</label>
-                    <input type="number" placeholder="1.00" className="input-dark" value={newRule.discount_amount} onChange={e => setNewRule({ ...newRule, discount_amount: e.target.value })} />
-                  </div>
+                <div className="form-group">
+                  <label className="modal-label">Start Time</label>
+                  <input type="time" className="input-glass w-100" value={newRule.start_time} onChange={e => setNewRule({ ...newRule, start_time: e.target.value })} />
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button onClick={handleSaveHappyHour} disabled={isSubmitting} className="btn-primary" style={{ flex: 1 }}>Save Rule</button>
-                  <button onClick={closeModal} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+                <div className="form-group">
+                  <label className="modal-label">End Time</label>
+                  <input type="time" className="input-glass w-100" value={newRule.end_time} onChange={e => setNewRule({ ...newRule, end_time: e.target.value })} />
+                </div>
+
+                <div className="form-group">
+                  <label className="modal-label">Target Category</label>
+                  <select className="input-glass w-100" value={newRule.category} onChange={e => setNewRule({ ...newRule, category: e.target.value })}>
+                    <option value="all">All Items</option>
+                    <option value="beer">Beer</option>
+                    <option value="liquor">Liquor</option>
+                    <option value="seltzer">Seltzer</option>
+                    <option value="pop">Pop</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="modal-label">Discount ($)</label>
+                  <input type="number" placeholder="1.00" className="input-glass w-100" value={newRule.discount_amount} onChange={e => setNewRule({ ...newRule, discount_amount: e.target.value })} />
+                </div>
+
+                <div className="modal-actions full-width">
+                  <button onClick={closeModal} disabled={isSubmitting} className="btn-glass btn-secondary">Cancel</button>
+                  <button onClick={handleSaveHappyHour} disabled={isSubmitting} className="btn-glass btn-save" style={{ flex: 2, marginLeft: '10px' }}>
+                    {isSubmitting ? <span className="animated-dots">Saving</span> : 'Save Rule'}
+                  </button>
                 </div>
               </div>
             )}
@@ -615,240 +517,326 @@ const AdminDashboard = ({ onBack, onLogout, user }) => {
         </div>
       )}
 
-      {/* Top Bar */}
+      {/* --- TOP BAR --- */}
       <TopBar
-        title="Employee Dashboard"
+        title="Admin Dashboard"
         onBack={onBack}
         onLogout={onLogout}
         user={user}
         customAction={
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="flex gap-10">
             {activeTab === 'inventory' && canManageInventory && (
-              <button onClick={() => openProductModal()} style={{ padding: '8px 15px', background: '#28a745', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold' }}>
-                + Add Product
-              </button>
+              <button onClick={() => openProductModal()} className="btn-glass btn-pay btn-action-sm">+ Add Product</button>
             )}
             {activeTab === 'employees' && canManageEmployees && (
-              <button onClick={() => openUserModal()} style={{ padding: '8px 15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold' }}>
-                + Add Employee
-              </button>
+              <button onClick={() => openUserModal()} className="btn-glass btn-pay-cash btn-action-sm">+ Add Employee</button>
             )}
             {activeTab === 'happyHour' && canManageInventory && (
-              <button onClick={() => openModal('happyHour')} className="btn-primary" style={{ padding: '8px 15px', background: '#9c27b0', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold' }}>
-                + Add Rule
-              </button>
+              <button onClick={() => openModal('happyHour')} className="btn-glass btn-pay-card btn-action-sm">+ Add Rule</button>
             )}
           </div>
         }
       />
 
-      <div className="tabs">
-        <button onClick={() => setActiveTab('sales')} className={`tab-btn ${activeTab === 'sales' ? 'active' : ''}`}>Sales History</button>
-        {canManageInventory && (
-          <button onClick={() => setActiveTab('inventory')} className={`tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}>Inventory Management</button>
-        )}
-        {canManageEmployees && (
-          <button onClick={() => setActiveTab('employees')} className={`tab-btn ${activeTab === 'employees' ? 'active' : ''}`}>Employees</button>
-        )}
-        {canManageInventory && (
-          <button onClick={() => setActiveTab('happyHour')} className={`tab-btn ${activeTab === 'happyHour' ? 'active' : ''}`}>Happy Hour</button>
-        )}
-      </div>
+      {/* --- MAIN GLASS PANEL --- */}
+      <div className="glass-panel admin-panel">
 
-      {/* Sales View */}
-      {!loading && activeTab === 'sales' && (
-        <div>
-          <div className="stats-mobile-toggle" onClick={() => setIsStatsOpen(!isStatsOpen)}>
-            <span>💰 Financial Overview</span>
-            <span>{isStatsOpen ? '▲' : '▼'}</span>
-          </div>
+        {/* Navigation Tabs */}
+        <div className="category-tabs">
+          <button onClick={() => setActiveTab('sales')} className={`btn-category ${activeTab === 'sales' ? 'active' : ''}`}>Sales History</button>
+          {canManageInventory && <button onClick={() => setActiveTab('inventory')} className={`btn-category ${activeTab === 'inventory' ? 'active' : ''}`}>Inventory</button>}
+          {canManageEmployees && <button onClick={() => setActiveTab('employees')} className={`btn-category ${activeTab === 'employees' ? 'active' : ''}`}>Employees</button>}
+          {canManageInventory && <button onClick={() => setActiveTab('happyHour')} className={`btn-category ${activeTab === 'happyHour' ? 'active' : ''}`}>Happy Hour</button>}
+        </div>
 
-          <div className="stats-card stats-card-container" style={{ marginBottom: '20px' }}>
-            <div className="stats-grid">
-              <div className="stats-box" style={{ flex: 1, textAlign: 'center', borderRight: '1px solid #444' }}>
-                <h3 style={{ margin: '0 0 10px 0', color: '#aaa' }}>Net Revenue</h3>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#28a745' }}>${stats.total.toFixed(2)}</div>
+        {/* Scrollable Content Area */}
+        <div className="admin-scroll-area">
+
+          {/* 1. SALES VIEW */}
+          {!loading && activeTab === 'sales' && (
+            <>
+              {/* --- STATS ROW --- */}
+              <div className="stats-container">
+                <div className="stats-box"><div className="stats-title">Net Revenue</div><div className="stats-value text-green">${stats.total.toFixed(2)}</div></div>
+                <div className="stats-box"><div className="stats-title">Total Tips</div><div className="stats-value text-blue">${stats.tips.toFixed(2)}</div></div>
+                <div className="stats-box"><div className="stats-title">Cash Drawer</div><div className="stats-value text-gold">${stats.cash.toFixed(2)}</div></div>
+                <div className="stats-box"><div className="stats-title">Card Sales</div><div className="stats-value text-purple">${stats.card.toFixed(2)}</div></div>
+
+                {!isBartender && (
+                  <button
+                    onClick={() => handleDeleteRequest('history')}
+                    className="btn-glass btn-danger btn-reset-history"
+                  >
+                    Reset<br />History
+                  </button>
+                )}
               </div>
-              <div className="stats-box" style={{ flex: 1, textAlign: 'center', borderRight: '1px solid #444' }}>
-                <h3 style={{ margin: '0 0 10px 0', color: '#aaa' }}>Total Tips</h3>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#17a2b8' }}>${stats.tips.toFixed(2)}</div>
+
+              {/* --- ANALYTICS TOGGLE --- */}
+              <div className="analytics-toggle" onClick={() => setShowChart(!showChart)}>
+                <span className="font-bold text-lg">📊 Sales Analytics</span>
+                <span>{showChart ? '▲' : '▼'}</span>
               </div>
-              <div className="stats-box" style={{ flex: 1, textAlign: 'center', borderRight: '1px solid #444' }}>
-                <h3 style={{ margin: '0 0 10px 0', color: '#aaa' }}>Cash in Drawer</h3>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ffc107' }}>${stats.cash.toFixed(2)}</div>
-              </div>
-              <div className="stats-box" style={{ flex: 1, textAlign: 'center' }}>
-                <h3 style={{ margin: '0 0 10px 0', color: '#aaa' }}>Card Sales</h3>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#007bff' }}>${stats.card.toFixed(2)}</div>
-              </div>
-              {!isBartender && (
-                <div className="stats-reset-btn" style={{ alignSelf: 'center', marginLeft: '20px' }}>
-                  <button onClick={() => handleDeleteRequest('history')} style={{ width: '100%', backgroundColor: '#d9534f', color: 'white', border: 'none', padding: '15px', borderRadius: '4px', cursor: 'pointer' }}>Reset<br />History</button>
+              {showChart && <div className="chart-slide-open mb-20"><SalesChart salesData={sales} /></div>}
+
+              {/* 📦 BOXED TRANSACTIONS CONTAINER */}
+              <div className={`glass-panel transaction-container-box ${isExpanded ? 'is-expanded' : ''}`}>
+                <div className="p-20">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <h3 className="card-title no-margin">Recent Transactions</h3>
+                      <p className="card-subtitle no-margin">
+                        Displaying {displayedSales.length} of {allFilteredSales.length} records
+                      </p>
+                    </div>
+
+                    {/* 🛠️ Header Actions: Print & Filters */}
+                    <div className="admin-toolbar no-margin">
+                      {/* 🖨️ Print Button */}
+                      <button onClick={handlePrintReport} className="btn-print-pill">
+                        Print Report 🖨️
+                      </button>
+
+                      <select
+                        className="input-glass input-filter"
+                        value={salesFilterMethod}
+                        onChange={(e) => setSalesFilterMethod(e.target.value)}
+                      >
+                        <option value="all">All Methods</option>
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="waste">Waste</option>
+                        <option value="entry_error">Void</option>
+                      </select>
+
+                      <select
+                        className="input-glass input-filter"
+                        value={salesFilterEmployee}
+                        onChange={(e) => setSalesFilterEmployee(e.target.value)}
+                      >
+                        <option value="all">All Employees</option>
+                        {uniqueEmployees.map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
 
-          <div className="analytics-toggle" onClick={() => setShowChart(!showChart)}>
-            <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#e0e0e0' }}>📊 Sales Analytics</span>
-            <span style={{ fontSize: '1.2rem', color: '#888' }}>{showChart ? '▲' : '▼'}</span>
-          </div>
+                {/* 📜 Scrollable Internal Table (Screen View) */}
+                <div className="transaction-scroll-area">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th className="sortable-th" onClick={() => handleSort('date')}>Date</th>
+                        <th className="sortable-th" onClick={() => handleSort('total')}>Revenue</th>
+                        <th className="sortable-th" onClick={() => handleSort('tip')}>Tip</th>
+                        <th>Method</th>
+                        <th>Employee</th>
+                        <th>Items</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayedSales.map((sale) => {
+                        let badgeClass = 'badge-method';
+                        if (sale.payment_method === 'cash') badgeClass = 'badge-pay';
+                        if (sale.payment_method === 'waste') badgeClass = 'badge-admin';
+                        return (
+                          <tr key={sale.id} className="clickable-row" onClick={() => setSelectedSale(sale)}>
+                            <td>{new Date(sale.date).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                            <td>${parseFloat(sale.total).toFixed(2)}</td>
+                            <td className="text-blue">${parseFloat(sale.tip || 0).toFixed(2)}</td>
+                            <td><span className={`badge ${badgeClass}`}>{sale.payment_method.toUpperCase()}</span></td>
+                            <td className="text-muted">{sale.employee_name || 'Unknown'}</td>
+                            <td className="text-muted text-sm">
+                              {Array.isArray(sale.items)
+                                ? sale.items.map(i => i.quantity && i.quantity > 1 ? `${i.name} x${i.quantity}` : i.name).join(', ')
+                                : 'Unknown Items'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {allFilteredSales.length === 0 && (
+                    <p className="text-center-muted p-20">No sales found matching criteria.</p>
+                  )}
+                </div>
 
-          {showChart && (
-            <div className="chart-slide-open" style={{ marginBottom: '20px' }}>
-              <SalesChart salesData={sales} />
+                {/* 🔍 Toggle Expansion Footer */}
+                {allFilteredSales.length > 20 && (
+                  <div className="transaction-footer-bar">
+                    <button className="btn-view-toggle" onClick={() => setIsExpanded(!isExpanded)}>
+                      {isExpanded ? '▲ Show Less' : `▼ View All (${allFilteredSales.length})`}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 🖨️ HIDDEN PRINT-ONLY REPORT */}
+              <div className="print-only-report">
+                <div className="print-header">
+                  {/* Left Side: Title & Date */}
+                  <div className="print-header-left">
+                    <h1>Sales History Report</h1>
+                    <p>Generated on: {new Date().toLocaleString()}</p>
+                    <p>Filter: {salesFilterMethod.toUpperCase()} | {salesFilterEmployee.toUpperCase()}</p>
+                  </div>
+
+                  {/* Right Side: Totals Box */}
+                  <div className="print-header-right">
+                    <div className="print-total-box">
+                      <span className="print-total-row">Records Found: <strong>{allFilteredSales.length}</strong></span>
+                      <span className="print-total-row">Total Tips: <strong>${stats.tips.toFixed(2)}</strong></span>
+                      <span className="print-big-total">Total Revenue: ${stats.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Employee</th>
+                      <th>Method</th>
+                      <th>Items</th>
+                      <th>Tip</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allFilteredSales.map((sale) => (
+                      <tr key={sale.id}>
+                        <td>{new Date(sale.date).toLocaleDateString()} {new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td>{sale.employee_name || 'System'}</td>
+                        <td>{sale.payment_method.toUpperCase()}</td>
+                        <td>
+                          {Array.isArray(sale.items)
+                            ? sale.items.map(i => i.quantity && i.quantity > 1 ? `${i.name} x${i.quantity}` : i.name).join(', ')
+                            : ''}
+                        </td>
+                        <td>${parseFloat(sale.tip || 0).toFixed(2)}</td>
+                        <td className="font-bold">${parseFloat(sale.total).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* 2. HAPPY HOUR VIEW */}
+          {!loading && activeTab === 'happyHour' && canManageInventory && (
+            <div className="admin-grid">
+              {happyHours.map(hh => (
+                <div key={hh.id} className="admin-card">
+                  <div>
+                    <h3 className="card-title text-purple mb-5">{hh.name}</h3>
+                    <div className="font-bold text-green mb-5">-${hh.discount_amount} Off ({hh.category})</div>
+                    <div className="text-muted">{hh.start_time.slice(0, 5)} - {hh.end_time.slice(0, 5)}</div>
+                    <div className="text-muted text-sm">{hh.days.join(', ')}</div>
+                  </div>
+                  <button onClick={() => handleDeleteRequest('happyHour', hh.id)} className="btn-glass btn-danger mt-10 p-8">Delete</button>
+                </div>
+              ))}
+              {happyHours.length === 0 && <p className="text-center-muted w-100">No Active Happy Hour Rules.</p>}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px', marginBottom: '10px', alignItems: 'center' }}>
-            <span style={{ fontWeight: 'bold', color: '#aaa' }}>Filter:</span>
-            <select className="input-dark" style={{ width: 'auto', padding: '8px' }} value={salesFilterMethod} onChange={(e) => setSalesFilterMethod(e.target.value)}>
-              <option value="all">All Methods</option>
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="waste">Waste</option>
-              <option value="entry_error">Void</option>
-            </select>
-
-            <select className="input-dark" style={{ width: 'auto', padding: '8px' }} value={salesFilterEmployee} onChange={(e) => setSalesFilterEmployee(e.target.value)}>
-              <option value="all">All Employees</option>
-              {uniqueEmployees.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </div>
-
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th className="sortable-th" onClick={() => handleSort('date')}>Date {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
-                <th className="sortable-th" onClick={() => handleSort('total')}>Revenue {sortConfig.key === 'total' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
-                <th className="sortable-th" onClick={() => handleSort('tip')}>Tip {sortConfig.key === 'tip' && (sortConfig.direction === 'asc' ? '▲' : '▼')}</th>
-                <th>Method</th>
-                <th>Employee</th>
-                <th>Items</th>
-              </tr>
-            </thead>
-            <tbody>
-              {getFilteredSales().map((sale) => {
-                let badgeColor = '#6610f2';
-                let badgeText = sale.payment_method ? sale.payment_method.toUpperCase() : 'UNKNOWN';
-                if (sale.payment_method === 'cash') badgeColor = '#218838';
-                if (sale.payment_method === 'waste') badgeColor = '#d9534f';
-                if (sale.payment_method === 'entry_error') { badgeColor = '#000000'; badgeText = 'VOID'; }
-                return (
-                  <tr key={sale.id} className="clickable-row" onClick={() => setSelectedSale(sale)}>
-                    <td>{new Date(sale.date).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td>${parseFloat(sale.total).toFixed(2)}</td>
-                    <td style={{ color: '#17a2b8' }}>${parseFloat(sale.tip || 0).toFixed(2)}</td>
-                    <td><span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: badgeColor, fontWeight: 'bold' }}>{badgeText}</span></td>
-                    <td style={{ color: '#ccc' }}>{sale.employee_name || 'Unknown'}</td>
-                    <td style={{ color: '#aaa', fontSize: '0.9rem' }}>{Array.isArray(sale.items) ? sale.items.map(i => i.quantity && i.quantity > 1 ? `${i.name} x${i.quantity}` : i.name).join(', ') : 'Unknown Items'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {getFilteredSales().length === 0 && <p style={{ marginTop: '20px', color: '#888' }}>No sales found matching criteria.</p>}
-        </div>
-      )}
-
-      {/* HAPPY HOUR VIEW */}
-      {!loading && activeTab === 'happyHour' && canManageInventory && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
-          {happyHours.map(hh => (
-            <div key={hh.id} className="hh-card">
-              <div>
-                <h3 style={{ margin: '0 0 5px 0', color: '#e040fb' }}>{hh.name}</h3>
-                <div style={{ fontWeight: 'bold', color: '#28a745', marginBottom: '5px' }}>-${hh.discount_amount} Off ({hh.category})</div>
-                <div style={{ color: '#ccc', fontSize: '0.9rem' }}>{hh.start_time.slice(0, 5)} - {hh.end_time.slice(0, 5)}</div>
-                <div style={{ color: '#888', fontSize: '0.8rem' }}>{hh.days.join(', ')}</div>
+          {/* 3. INVENTORY VIEW */}
+          {!loading && activeTab === 'inventory' && canManageInventory && (
+            <>
+              <div className="admin-toolbar">
+                <input
+                  type="text"
+                  placeholder="🔍 Search inventory..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input-glass input-search-bar"
+                />
+                <div className="flex gap-5">
+                  <button onClick={() => setInventoryFilter('all')} className={`glass-item ${inventoryFilter === 'all' ? 'btn-pay-cash' : ''} px-15`}>All</button>
+                  <button onClick={() => setInventoryFilter('low')} className={`glass-item ${inventoryFilter === 'low' ? 'text-gold' : ''} px-15`}>⚠️ Low</button>
+                  <button onClick={() => setInventoryFilter('sold_out')} className={`glass-item ${inventoryFilter === 'sold_out' ? 'text-purple' : ''} px-15`}>❌ Sold Out</button>
+                </div>
               </div>
-              <button onClick={() => handleDeleteRequest('happyHour', hh.id)} style={{ marginTop: '10px', background: '#d9534f', border: 'none', color: 'white', padding: '5px', width: '100%', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>
-            </div>
-          ))}
-          {happyHours.length === 0 && <p>No Active Happy Hour Rules.</p>}
-        </div>
-      )}
 
-      {/* Inventory View */}
-      {!loading && activeTab === 'inventory' && canManageInventory && (
-        <div>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
-            <input
-              type="text"
-              placeholder="🔍 Search inventory..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ flex: 1, padding: '12px', fontSize: '1rem', borderRadius: '8px', border: '1px solid #555', background: '#2a2a2a', color: 'white', minWidth: '200px' }}
-            />
-            <div style={{ display: 'flex', gap: '5px' }}>
-              <button onClick={() => setInventoryFilter('all')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'all' ? '#007bff' : '#333', color: 'white' }}>All</button>
-              <button onClick={() => setInventoryFilter('low')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'low' ? '#ffc107' : '#333', color: inventoryFilter === 'low' ? 'black' : 'white' }}>⚠️ Low Stock</button>
-              <button onClick={() => setInventoryFilter('sold_out')} style={{ padding: '12px 15px', borderRadius: '8px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', background: inventoryFilter === 'sold_out' ? '#d90429' : '#333', color: 'white' }}>❌ Sold Out</button>
-            </div>
-          </div>
+              <div className="admin-grid">
+                {filteredInventory.length === 0 && <p className="text-center-muted">No matching products found.</p>}
+                {filteredInventory.map(item => {
+                  const isTracked = item.stock_count !== null;
+                  const isSoldOut = !item.is_available || (isTracked && item.stock_count <= 0);
+                  const isLowStock = !isSoldOut && isTracked && item.stock_count < 10;
 
-          <div className="inventory-grid">
-            {filteredInventory.length === 0 && <p style={{ color: '#888' }}>No matching products found.</p>}
-            {filteredInventory.map(item => {
-              const isTracked = item.stock_count !== null;
-              const isSoldOut = !item.is_available || (isTracked && item.stock_count <= 0);
-              const isLowStock = !isSoldOut && isTracked && item.stock_count < 10;
-              return (
-                <div key={item.id} className="inventory-item" style={{
-                  position: 'relative', background: '#2a2a2a', padding: '15px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', overflow: 'hidden', border: '1px solid #444', opacity: isSoldOut ? 0.7 : 1,
-                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%', boxSizing: 'border-box'
-                }}>
-                  {isSoldOut && <div style={{ position: 'absolute', top: '12px', right: '-35px', transform: 'rotate(45deg)', background: 'linear-gradient(to bottom, #d90429 0%, #8d0801 100%)', color: '#fff', width: '120px', textAlign: 'center', padding: '4px 0', boxShadow: '0 2px 4px rgba(0,0,0,0.5)', fontWeight: 'bold', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 10 }}>Sold Out</div>}
-                  {isLowStock && <div style={{ position: 'absolute', top: '12px', right: '-35px', transform: 'rotate(45deg)', background: 'linear-gradient(to bottom, #ffeb3b 0%, #fbc02d 100%)', color: '#000', width: '120px', textAlign: 'center', padding: '4px 0', boxShadow: '0 2px 4px rgba(0,0,0,0.5)', fontWeight: 'bold', fontSize: '0.8rem', zIndex: 10 }}>{item.stock_count} Left</div>}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px', paddingRight: '60px' }}>
+                  return (
+                    <div key={item.id} className={`admin-card product-card-container ${isSoldOut ? 'sold-out-bg' : ''}`}>
+                      {isSoldOut && <div className="ribbon sold-out">Sold Out</div>}
+                      {isLowStock && <div className="ribbon stock-left">{item.stock_count} Left</div>}
+
                       <div>
-                        <h3 style={{ margin: '0 0 5px 0', fontSize: '1.2rem' }}>{item.name}</h3>
-                        <span style={{ background: '#444', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', textTransform: 'uppercase', color: '#ccc' }}>{item.category} {item.tier ? `• ${item.tier}` : ''}</span>
+                        <div className="card-header">
+                          <div>
+                            <h3 className="card-title">{item.name}</h3>
+                            <span className="badge" style={{ background: 'var(--glass-border)', color: 'var(--text-muted)' }}>{item.category} {item.tier ? `• ${item.tier}` : ''}</span>
+                          </div>
+                          <div className="text-green font-bold text-lg">${item.price.toFixed(2)}</div>
+                        </div>
+                        <div className="mb-15 text-muted">
+                          Current Stock:
+                          <span className={`font-bold ml-5 ${isSoldOut ? 'text-danger' : isLowStock ? 'text-gold' : 'text-normal'}`}>
+                            {item.stock_count !== null ? item.stock_count : '∞'}
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#4caf50' }}>${item.price.toFixed(2)}</div>
-                    </div>
-                    <div style={{ marginBottom: '15px', fontSize: '0.9rem', color: '#bbb' }}>Current Stock: <span style={{ fontWeight: 'bold', marginLeft: '5px', color: isSoldOut ? '#ef5350' : (isLowStock ? '#ffca28' : '#fff') }}>{item.stock_count !== null ? item.stock_count : '∞'}</span></div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
-                    <button onClick={() => openProductModal(item)} style={{ flex: 1, padding: '8px', background: '#2196f3', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>Edit</button>
-                    <button onClick={() => handleDeleteRequest('product', item.id)} style={{ flex: 1, padding: '8px', background: '#f44336', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
-      {/* Employees View */}
-      {!loading && activeTab === 'employees' && canManageEmployees && (
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
-            {users.map(u => (
-              <div key={u.id} className="user-card">
-                <div>
-                  <h3 style={{ margin: '0 0 5px 0' }}>{u.name}</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span className={`badge badge-${u.role}`}>{u.role}</span>
-                    <span style={{ color: '#888', fontSize: '0.9rem' }}>PIN: ••••</span>
-                    {/* Visual Indicator for Discount Permission */}
-                    {u.can_discount && <span style={{ fontSize: '0.8rem', background: '#ffc107', color: 'black', padding: '2px 6px', borderRadius: '4px' }} title="Allowed to Discount">%</span>}
+                      <div className="flex gap-10 mt-auto">
+                        <button onClick={() => openProductModal(item)} className="btn-glass btn-pay-cash p-8">Edit</button>
+                        <button onClick={() => handleDeleteRequest('product', item.id)} className="btn-glass btn-danger p-8">Delete</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* 4. EMPLOYEES VIEW */}
+          {!loading && activeTab === 'employees' && canManageEmployees && (
+            <div className="admin-grid">
+              {users.map(u => (
+                <div key={u.id} className="admin-card">
+                  <div>
+                    <h3 className="card-title mb-5">{u.name}</h3>
+                    <div className="flex items-center gap-10">
+                      <span className={`badge badge-${u.role}`}>{u.role}</span>
+                      <span className="text-muted text-sm">PIN: ••••</span>
+                      {u.can_discount && <span className="badge badge-manager" title="Allowed to Discount">%</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-10 mt-20">
+                    <button
+                      onClick={() => openUserModal(u)}
+                      className="btn-glass btn-pay-cash p-8"
+                    >
+                      Edit
+                    </button>
+
+                    {/* 🗑️ DELETE BUTTON: Changed '✕' to 'Delete' */}
+                    <button
+                      onClick={() => handleDeleteRequest('user', u.id)}
+                      className="btn-glass btn-danger p-8"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => openUserModal(u)} style={{ background: '#444', border: 'none', color: '#ccc', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer' }}>Edit</button>
-                  <button onClick={() => handleDeleteRequest('user', u.id)} style={{ background: '#d9534f', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer' }}>✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {users.length === 0 && <p>No employees found.</p>}
+              ))}
+              {users.length === 0 && <p className="text-center-muted w-100">No employees found.</p>}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </div >
   );
 };
 

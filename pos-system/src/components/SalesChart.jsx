@@ -2,13 +2,23 @@
 import React from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
+/**
+ * SalesChart Component
+ * * Visualizes the top 10 selling items using a horizontal bar chart.
+ * * Features:
+ * - Processes raw sales data to aggregate quantities by item name.
+ * - Sorts items to show bestsellers at the top.
+ * - Uses CSS variables for styling.
+ * * @param {Array} salesData - Array of completed sale objects from the database.
+ */
 const SalesChart = ({ salesData }) => {
+
+    // Chart Bar Colors (Cycling palette)
     const COOL_COLORS = ['#3F51B5', '#00BCD4', '#673AB7', '#2196F3', '#009688', '#9C27B0'];
 
-    // Helper to shorten long names so they don't break the graph
     const formatName = (name) => {
         if (!name) return '';
-        return name.length > 18 ? name.substring(0, 18) + '...' : name;
+        return name.length > 15 ? name.substring(0, 15) + '...' : name;
     };
 
     const processData = () => {
@@ -16,9 +26,9 @@ const SalesChart = ({ salesData }) => {
 
         const allItems = salesData.flatMap(sale => sale.items || []);
         const counts = {};
+
         allItems.forEach(item => {
             const qty = item.quantity || 1;
-            // Ensure name exists to prevent graph glitches
             const safeName = item.name || 'Unknown';
             counts[safeName] = (counts[safeName] || 0) + qty;
         });
@@ -31,62 +41,76 @@ const SalesChart = ({ salesData }) => {
 
     const data = processData();
 
+    // --- Custom Tooltip Component ---
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="chart-tooltip">
+                    <p className="tooltip-label">{label}</p>
+                    <p className="tooltip-value">Sold: {payload[0].value}</p>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    // --- Render: Empty State ---
     if (data.length === 0) {
         return (
-            <div style={{ height: '150px', width: '100%', padding: '20px', background: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', border: '1px solid #444' }}>
+            <div className="chart-empty">
                 No sales data to chart yet.
             </div>
         );
     }
 
+    // --- Render: Chart ---
     return (
-        <div style={{
-            height: '320px',
-            width: '100%',
-            background: '#222',
-            borderRadius: '8px',
-            border: '1px solid #444',
-            padding: '20px',
-            boxSizing: 'border-box'
-        }}>
-            <h3 style={{ textAlign: 'center', color: '#aaa', margin: '0 0 15px 0', fontSize: '1rem' }}>Top 10 Bestsellers</h3>
+        <div className="chart-card">
+            <h3 className="chart-title">Top 10 Bestsellers</h3>
 
-            <ResponsiveContainer width="100%" height="300" minWidth={300}>
-                <BarChart
-                    data={data}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-                >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
+            {/* FIX: We wrap ResponsiveContainer in a div with explicit dimensions.
+                We also set a fixed numeric height on ResponsiveContainer (300).
+                This prevents the "width(-1)" error during CSS animations.
+            */}
+            <div style={{ width: '100%', height: '300px' }}>
+                <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                        data={data}
+                        layout="vertical"
+                        margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" horizontal={false} />
 
-                    <XAxis type="number" stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
+                        <XAxis
+                            type="number"
+                            stroke="var(--text-muted)"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
+                        />
 
-                    <YAxis
-                        type="category"
-                        dataKey="name"
-                        stroke="#e0e0e0"
-                        width={150} /* 👈 Increased width to fit longer names */
-                        tick={{ fontSize: 12, fill: '#ccc' }}
-                        tickLine={false}
-                        axisLine={false}
-                        interval={0} /* 👈 Forces ALL labels to show */
-                        tickFormatter={formatName} /* 👈 Truncates super long names */
-                    />
+                        <YAxis
+                            type="category"
+                            dataKey="name"
+                            stroke="var(--text-color)"
+                            width={120}
+                            tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                            tickLine={false}
+                            axisLine={false}
+                            interval={0}
+                            tickFormatter={formatName}
+                        />
 
-                    <Tooltip
-                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                        contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid #555', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}
-                        itemStyle={{ color: '#fff', fontWeight: 'bold' }}
-                        labelStyle={{ color: '#bbb' }}
-                    />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--hover-bg)' }} />
 
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={18}>
-                        {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COOL_COLORS[index % COOL_COLORS.length]} />
-                        ))}
-                    </Bar>
-                </BarChart>
-            </ResponsiveContainer>
+                        <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
+                            {data.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COOL_COLORS[index % COOL_COLORS.length]} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
         </div>
     );
 };

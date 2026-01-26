@@ -4,9 +4,6 @@ import PointOfSale from './components/PointOfSale.jsx';
 import Login from './components/Login.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 
-// Import CSS
-import './App.css';
-
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [view, setView] = useState('pos');

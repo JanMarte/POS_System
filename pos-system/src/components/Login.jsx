@@ -1,5 +1,5 @@
 // src/components/Login.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import Notification from './Notification';
 import { hashPin } from '../data/repository';
@@ -7,19 +7,59 @@ import { hashPin } from '../data/repository';
 const Login = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({ message: '', type: '' });
 
+  // 💥 State for the shake effect
+  const [isShaking, setIsShaking] = useState(false);
+
+  // 🛡️ Theme Sync
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('pos-theme');
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const themeToApply = savedTheme || (systemDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', themeToApply);
+  }, []);
+
+  // 📳 Haptic Feedback Helper
+  const hapticFeedback = (duration = 10) => {
+    if ("vibrate" in navigator) {
+      navigator.vibrate(duration);
+    }
+  };
+
+  // ⌨️ Keyboard Support
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'text') return;
+
+      if (e.key >= '0' && e.key <= '9') {
+        handleNumberClick(e.key);
+      } else if (e.key === 'Backspace') {
+        hapticFeedback();
+        setPin(prev => prev.slice(0, -1));
+      } else if (e.key === 'Enter') {
+        if (pin.length === 4) handleSubmit();
+      } else if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
+        handleClear();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pin, name, loading]); // Added loading to deps to prevent double-firing
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (loading) return;
+    if (e) e.preventDefault();
+    if (loading || pin.length < 4) return;
 
     setLoading(true);
     setNotification({ message: '', type: '' });
+    setIsShaking(false);
 
     try {
       const hashedPin = await hashPin(pin);
-
       const { data, error } = await supabase.rpc('verify_user_pin', {
         user_name: name.trim(),
         input_pin: hashedPin
@@ -28,92 +68,115 @@ const Login = ({ onLogin }) => {
       if (error) throw error;
 
       if (data) {
+        if (data.theme) {
+          document.documentElement.setAttribute('data-theme', data.theme);
+          localStorage.setItem('pos-theme', data.theme);
+        }
         setNotification({ message: `Welcome, ${data.name}!`, type: 'success' });
-        setTimeout(() => {
-          onLogin(data);
-        }, 800);
+        setTimeout(() => onLogin(data), 800);
       } else {
+        // 💥 Failure: Shake and Vibrate
+        setIsShaking(true);
+        hapticFeedback([50, 30, 50]); // Double-vibrate for error
         setNotification({ message: 'Invalid Name or PIN', type: 'error' });
+        setPin('');
         setLoading(false);
+
+        // Reset shake state after animation ends
+        setTimeout(() => setIsShaking(false), 400);
       }
     } catch (err) {
-      console.error(err);
       setNotification({ message: 'Login Error', type: 'error' });
       setLoading(false);
     }
   };
 
-  const styles = {
-    container: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#222', color: 'white' },
-    form: { display: 'flex', flexDirection: 'column', gap: '15px', width: '300px', padding: '30px', background: '#333', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.5)' },
-    input: { padding: '15px', fontSize: '1.2rem', borderRadius: '5px', border: '1px solid #555', background: '#222', color: 'white', textAlign: 'center' },
-    button: {
-      padding: '15px', fontSize: '1.2rem', borderRadius: '5px', border: 'none',
-      cursor: loading ? 'not-allowed' : 'pointer',
-      backgroundColor: loading ? '#555' : '#28a745',
-      color: 'white', fontWeight: 'bold',
-      transition: 'all 0.2s',
-      display: 'flex', justifyContent: 'center' // Center the text + dots
+  const handleNumberClick = (num) => {
+    if (pin.length < 4) {
+      hapticFeedback();
+      setPin(prev => prev + num);
     }
   };
 
+  const handleClear = () => {
+    hapticFeedback();
+    setPin('');
+  };
+
   return (
-    <div style={styles.container}>
+    <div className="pos-container login-layout">
       <Notification
         message={notification.message}
         type={notification.type}
         onClose={() => setNotification({ message: '', type: '' })}
       />
 
-      {/* 👇 ANIMATION STYLES */}
-      <style>{`
-        @keyframes dots {
-          0%, 20% { content: "."; }
-          40% { content: ".."; }
-          60%, 100% { content: "..."; }
-        }
-        .animated-dots::after {
-          content: ".";
-          animation: dots 1.5s steps(1, end) infinite;
-          display: inline-block;
-          width: 0px; /* Prevents button size jumping */
-          text-align: left;
-        }
-      `}</style>
+      {/* 💎 Added conditional class "login-card-shake" */}
+      <div className={`glass-panel login-card ${isShaking ? 'login-card-shake' : ''}`}>
+        <h2 className="login-title">System Login</h2>
 
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <h2 style={{ textAlign: 'center', margin: '0 0 20px 0' }}>System Login</h2>
+        <form onSubmit={handleSubmit} className="flex-col">
+          <div className="login-field-group">
+            <div className="flex-col">
+              <label className="text-sm text-blue font-bold ml-5 mb-5">STAFF NAME</label>
+              <input
+                className="input-glass input-login w-100"
+                type="text"
+                placeholder="Enter Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                autoComplete="username"
+                disabled={loading}
+              />
+            </div>
 
-        <input
-          style={styles.input}
-          type="text"
-          placeholder="Name (e.g. Jan)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-          autoComplete="username"
-          disabled={loading}
-        />
+            <div className="flex-col">
+              <label className="text-sm text-blue font-bold ml-5 mb-5">SECURITY PIN</label>
+              <div className="pin-input-wrapper">
+                <input
+                  className="input-glass input-login w-100 text-center"
+                  type={showPin ? "text" : "password"}
+                  placeholder="••••"
+                  value={pin}
+                  readOnly
+                  disabled={loading}
+                  autoComplete="one-time-code"
+                />
+                <button
+                  type="button"
+                  className="btn-show-pin"
+                  onClick={() => { hapticFeedback(); setShowPin(!showPin); }}
+                >
+                  {showPin ? '👁️‍🗨️' : '👁️'}
+                </button>
+              </div>
+            </div>
+          </div>
 
-        <input
-          style={styles.input}
-          type="password"
-          placeholder="PIN"
-          maxLength="4"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          autoComplete="current-password"
-          disabled={loading}
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={styles.button}
-        >
-          {loading ? <span className="animated-dots">Verifying</span> : 'LOGIN'}
-        </button>
-      </form>
+          <div className="login-pin-grid">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+              <button
+                key={num}
+                type="button"
+                className="btn-glass btn-pin"
+                onClick={() => handleNumberClick(num.toString())}
+              >
+                {num}
+              </button>
+            ))}
+            <button type="button" className="btn-glass btn-pin btn-clear" onClick={handleClear}>C</button>
+            <button type="button" className="btn-glass btn-pin" onClick={() => handleNumberClick('0')}>0</button>
+            <button
+              type="submit"
+              className="btn-glass btn-pin btn-go"
+              disabled={pin.length < 4 || loading}
+            >
+              ➔
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

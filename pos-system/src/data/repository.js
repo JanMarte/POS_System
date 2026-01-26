@@ -63,15 +63,30 @@ export const deleteHappyHour = async (id) => {
 // --- SALES ---
 export const deductStock = async (items) => {
   for (const item of items) {
-    if (!item.id || !item.quantity) continue;
+    const targetId = item.inventory_id || item.id;
 
-    const { data: currentItem } = await supabase
+    // 1. Basic validation: ensure ID and Quantity exist
+    if (!targetId || !item.quantity) continue;
+
+    // 2. 🛡️ CRITICAL FIX: Skip Custom Items
+    // If the ID is a string and starts with 'custom-', it does not exist in the DB.
+    // We skip it immediately to prevent the "400 Bad Request" error.
+    if (typeof targetId === 'string' && targetId.startsWith('custom-')) {
+      continue;
+    }
+
+    // 3. Fetch current stock from Database
+    const { data: currentItem, error } = await supabase
       .from('inventory')
       .select('stock_count, is_available')
-      .eq('id', item.inventory_id || item.id)
+      .eq('id', targetId)
       .single();
 
-    if (currentItem && currentItem.stock_count !== null) {
+    // If there is an error (item not found) or it's not tracked, skip it
+    if (error || !currentItem) continue;
+
+    // 4. Update if stock tracking is enabled (not null)
+    if (currentItem.stock_count !== null) {
       const newStock = Math.max(0, currentItem.stock_count - item.quantity);
       const shouldBeAvailable = newStock > 0;
 
@@ -81,7 +96,7 @@ export const deductStock = async (items) => {
           stock_count: newStock,
           is_available: shouldBeAvailable
         })
-        .eq('id', item.inventory_id || item.id);
+        .eq('id', targetId);
     }
   }
 };

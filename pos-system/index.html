@@ -1,13 +1,36 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>pos-system</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pos-system</title>
+
+  <script>
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem('pos-theme');
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        // 🚀 FIX: Use document.documentElement instead of document.body
+        const target = document.documentElement;
+
+        if (savedTheme) {
+          target.setAttribute('data-theme', savedTheme);
+        } else {
+          target.setAttribute('data-theme', supportDarkMode ? 'dark' : 'light');
+        }
+      } catch (e) {
+        console.error("Theme Guard Error", e);
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
